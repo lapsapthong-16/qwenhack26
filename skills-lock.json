@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "repo-illustrations": {
+      "source": "lapsapthong-16/my-skills",
+      "sourceType": "github",
+      "skillPath": "skills/repo-illustrations/SKILL.md",
+      "computedHash": "b0d87a8ac70c7642de52a799a567db07afcf64cbe1c79e5558cca9a5b1a60c54"
+    },
+    "repo-readme-writer": {
+      "source": "lapsapthong-16/my-skills",
+      "sourceType": "github",
+      "skillPath": "skills/repo-readme-writer/SKILL.md",
+      "computedHash": "1691101ce60fc4a325b6a643415be147075f064e2e3b3fd46bb7fb5c20b182b1"
+    },
+    "validator": {
+      "source": "lapsapthong-16/my-skills",
+      "sourceType": "github",
+      "skillPath": "skills/validator/SKILL.md",
+      "computedHash": "4687f2b4650d1776fff43644d80e68a1f124b48202a245c8a82add26e98cb9a1"
+    }
+  }
+}

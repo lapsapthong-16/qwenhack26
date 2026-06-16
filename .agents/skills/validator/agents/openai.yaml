@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validator"
+  short_description: "Validate project problems, niches, and solutions"
+  default_prompt: "Use $validator to validate this project idea, problem statement, niche, competitors, and solution."

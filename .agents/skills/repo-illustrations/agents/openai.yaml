@@ -1,0 +1,6 @@
+interface:
+  display_name: "Repo Illustrations"
+  short_description: "Generate sparse absurd English README illustrations"
+  default_prompt: "Use $repo-illustrations to read this repo's README.md only and generate a few English project illustrations."
+policy:
+  allow_implicit_invocation: true
