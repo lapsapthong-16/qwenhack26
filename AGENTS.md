@@ -227,16 +227,44 @@ For hackathon MVP, public repo import is enough. Private repo support can be des
 
 Use concrete agent roles. Avoid vague "swarm AI" language.
 
-Suggested agents:
+Use exactly **6 MVP agents**. Do not add more for the first build unless the user explicitly changes scope.
 
-- **Baseline Agent**: compares current dependency state against the last approved repo/workspace baseline.
-- **Dependency Agent**: builds dependency graph and identifies new/changed packages.
-- **Manifest Agent**: inspects package metadata, scripts, version age, maintainer/publisher signals.
-- **Static Agent**: detects suspicious patterns such as obfuscation, `eval`, env access, file access, network calls, and child process use.
-- **Behavior Agent**: runs or simulates sandbox checks for install/runtime behavior.
-- **Skeptic Agent**: challenges false positives and asks whether behavior is normal for the package category.
-- **Policy Agent**: applies project/team rules such as blocking new packages, recent versions, install scripts, or unknown maintainers.
-- **Judge Agent**: resolves disagreements and emits final verdict: allow, review, block, rollback.
+Final MVP agent set:
+
+1. **Baseline Agent**
+   - Compares current dependency state against the last approved repo/workspace baseline.
+   - Builds dependency diff and identifies added/updated/removed packages.
+   - Owns dependency graph impact for MVP; do not create a separate Dependency Graph Agent.
+
+2. **Manifest Agent**
+   - Inspects package metadata, lifecycle scripts, release timing, maintainer/publisher signals, dependency count jumps, and package purpose mismatch.
+   - Must be specific. Avoid generic metadata summaries.
+
+3. **Static Agent**
+   - Detects suspicious source patterns such as obfuscation, `eval`, dynamic `Function`, env access, file access, network calls, and child process use.
+   - Should use deterministic rules/tools first, then Qwen reasoning to explain severity.
+
+4. **Behavior Agent**
+   - Tests or simulates install/runtime behavior in isolation.
+   - For MVP, a controlled sandbox or monitored sample package is acceptable if evidence is concrete.
+
+5. **Skeptic Agent**
+   - Visible Track 3 collaboration agent, not a hidden critique pass.
+   - Challenges false positives and asks whether each finding could be legitimate for the package type.
+   - Forces evidence quality before a package is blocked.
+
+6. **Judge Agent**
+   - Resolves disagreement into final verdict: `Allow`, `Review`, or `Block`.
+   - Applies policy for MVP; do not create a separate Policy Agent yet.
+   - May output remediation suggestions such as pin previous version, rollback lockfile, remove package, or wait; do not create a separate Remediation Agent yet.
+
+Agent-count decisions:
+
+- **Keep 6 agents** for the MVP. This is enough to show Track 3 collaboration without making the demo noisy.
+- Do not add a separate Policy Agent, Dependency Graph Agent, or Remediation Agent for MVP.
+- Policy belongs inside Judge Agent for now.
+- Dependency graph/diff belongs inside Baseline Agent for now.
+- Remediation is an output, not a separate agent, for now.
 
 Track 3 demo should visibly show:
 
@@ -245,6 +273,10 @@ Track 3 demo should visibly show:
 - evidence used to resolve the disagreement
 - final consensus verdict
 - why this is better than a single-agent answer
+
+Best demo line:
+
+> Six Qwen agents review the dependency change like a security panel: one finds what changed, two inspect the package, one tests behavior, one challenges the evidence, and one issues the final verdict.
 
 ## Demo Direction
 
