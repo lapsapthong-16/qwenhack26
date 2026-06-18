@@ -166,6 +166,25 @@ Example repo trust pointer:
 }
 ```
 
+## MVP vs Production Data Strategy
+
+For the hackathon MVP, Locksmith stores dependency states, reviews, agent findings, workspace approvals, and review history in the hosted backend database. This keeps the demo simple, testable, and easy to explain.
+
+For production, Locksmith should not store every user's full project state forever. The scalable design is:
+
+| Layer | Production Strategy |
+| --- | --- |
+| Global package evidence | Store once by package/version/hash and reuse across workspaces. |
+| Dependency state | Represent as a content hash from dependency files and lockfiles, not a permanent full repo snapshot. |
+| Workspace approval | Store a tiny pointer: workspace, state hash, policy, decision, review ID, timestamp. |
+| Repo trust file | Keep the approved state pointer in Git so CLI and CI can verify the local state. |
+| Full agent traces | Keep under retention policies or export to customer-owned storage. |
+| Enterprise storage | Support bring-your-own Alibaba OSS/S3-compatible bucket or self-hosted evidence vault. |
+
+Production answer for scale:
+
+> Locksmith uses a content-addressed model. Heavy evidence is deduplicated globally by package/version/hash, while teams store only small approval pointers to dependency state hashes. The CLI can recompute the same state hash locally, so raw project files do not need to live in Locksmith forever.
+
 ## Demo Flow 1: Web App GitHub Import
 
 The web app demo should show a public GitHub repo import.
