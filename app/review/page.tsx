@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import "./review.css";
 
 const agents = [
@@ -14,7 +14,10 @@ const agents = [
 
 export default function ReviewPage() {
   const [reviewed, setReviewed] = useState(false);
+  const [auditing, setAuditing] = useState(false);
+  const [activeAgent, setActiveAgent] = useState(-1);
   const [repo, setRepo] = useState("https://github.com/acme/storefront");
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const repoName = repo.split("/").filter(Boolean).at(-1) || "storefront";
 
   useEffect(() => {
@@ -22,10 +25,24 @@ export default function ReviewPage() {
     if (imported?.startsWith("https://github.com/")) setRepo(imported);
   }, []);
 
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+
   function submit(event: FormEvent) {
     event.preventDefault();
-    setReviewed(true);
-    requestAnimationFrame(() => document.querySelector("#report")?.scrollIntoView({ behavior: "smooth" }));
+    if (timer.current) clearInterval(timer.current);
+    setReviewed(false);
+    setAuditing(true);
+    setActiveAgent(0);
+    requestAnimationFrame(() => document.querySelector("#audit-process")?.scrollIntoView({ behavior: "smooth" }));
+    let step = 0;
+    timer.current = setInterval(() => {
+      step += 1;
+      if (step < agents.length) return setActiveAgent(step);
+      if (timer.current) clearInterval(timer.current);
+      setAuditing(false);
+      setReviewed(true);
+      requestAnimationFrame(() => document.querySelector("#report")?.scrollIntoView({ behavior: "smooth" }));
+    }, 720);
   }
 
   return <main className="review-page">
@@ -54,6 +71,25 @@ export default function ReviewPage() {
         <div><dt>Baseline</dt><dd>Last approved state</dd></div>
       </dl>
     </section>
+
+    {auditing ? <section id="audit-process" className="audit-process wrap" aria-live="polite" aria-label="Dependency audit in progress">
+      <header className="process-head">
+        <div><p className="eyebrow">Live audit / Prepared demo</p><h2>Building the case.</h2></div>
+        <div className="process-count mono">{String(Math.min(activeAgent + 1, 6)).padStart(2, "0")} / 06</div>
+      </header>
+      <div className="process-repo"><span className="process-pulse" aria-hidden="true" /><span>Reviewing</span><strong>{repo}</strong></div>
+      <ol className="process-list">
+        {agents.map((agent, index) => {
+          const state = index < activeAgent ? "done" : index === activeAgent ? "running" : "waiting";
+          return <li className={`process-step ${state}`} key={agent.name}>
+            <span className="mono">{agent.n}</span><strong>{agent.name} Agent</strong>
+            <p>{state === "done" ? agent.title : state === "running" ? agent.body : "Waiting for prior evidence"}</p>
+            <span className="process-status mono">{state === "done" ? "Complete" : state === "running" ? "Inspecting" : "Queued"}</span>
+          </li>;
+        })}
+      </ol>
+      <p className="process-note">Demo timing is hardcoded. Findings below represent prepared audit evidence.</p>
+    </section> : null}
 
     {reviewed ? <section id="report" className="report wrap" aria-live="polite">
       <header className="report-head">

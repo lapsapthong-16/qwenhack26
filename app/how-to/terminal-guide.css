@@ -1,0 +1,47 @@
+.prototype-warning {
+  margin: -10px 0 28px;
+  padding: 12px 14px;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  font-size: 12px;
+}
+
+.command-guide {
+  margin-bottom: 30px;
+  border-top: 1px solid var(--line);
+}
+
+.command-guide section {
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.command-guide section > span {
+  color: var(--muted);
+  font: 600 9px/1 var(--mono);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.command-guide section > p {
+  margin: 7px 0 11px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.command-guide pre {
+  margin: 10px 0 0;
+  padding: 13px 15px;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: #22221f;
+  color: #f7f5ef;
+  font: 12px/1.7 var(--mono);
+}
+
+.command-guide pre b {
+  color: #d78b80;
+  font-weight: 400;
+}
+
+.command-guide .sample-output { color: #d8d4c9; }
