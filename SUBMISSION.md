@@ -9,13 +9,3 @@ Include a video (about 3 minutes) that demonstrates your submission functioning.
 Include a text description that should explain the features and functionality of your Project.
 Identify which Track you are submitting into.
 Optional: Provide a URL to a published Blog or Social Post showing your journey building with QwenCloud to be eligible for the Blog Post Prize. See more details above for Blog Submission.
-
-Judging Criteria
-Technical Depth & Engineering (30%)
-Does the project make sophisticated use of QwenCloud APIs (e.g., custom skills, MCP integrations)? Does the project demonstrate algorithmic or engineering innovation through novel solutions, custom components, or performance optimization?
-Innovation & AI Creativity (30%)
-Is the architecture high-quality, with strong modularity, scalability, and error handling? Does the project reflect clean code and non-trivial logic? Does the tech stack show sophistication via advanced patterns and thoughtful adoption?
-Problem Value & Impact (25%)
-Does the project have real-world relevance by solving an authentic technical or business pain point? Does the project have scalability potential for productization or open-source community adoption?
-Presentation & Documentation (15%)
-Is the technical demo clear, with the key logic visualized effectively? Is the documentation clear, including architecture docs that describe the project?
