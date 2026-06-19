@@ -266,92 +266,81 @@ Earlier project ideas used Web3 payment and audit records, but Locksmith is inte
 
 ## Getting Started
 
-The repository is currently in planning/scaffold stage. The intended app will be a Next.js + React project with a CLI companion.
-
-Planned setup after scaffold:
+Locksmith currently runs as a local Next.js prototype. Node.js 20 or newer is recommended.
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Planned CLI usage:
+Open [http://localhost:3000](http://localhost:3000). Without a Qwen key, the review API deliberately uses deterministic mock responses so the full local flow remains testable.
+
+### Connect Alibaba Cloud Model Studio
+
+1. Sign in to [Alibaba Cloud Model Studio](https://modelstudio.console.alibabacloud.com/).
+2. Choose the region where you will use Qwen and [create a Model Studio API key](https://www.alibabacloud.com/help/en/model-studio/get-api-key). A key only works with the endpoint for the same region.
+3. Copy `.env.example` to `.env.local`, then set `QWEN_API_KEY` to that key.
+4. Leave `QWEN_MODEL=qwen-plus` for the MVP, or replace it with a model available in your selected region.
+5. Restart `npm run dev` after changing environment variables.
+
+Singapore is the default and is usually the simplest choice for this project:
 
 ```bash
-locksmith scan .
-locksmith review package-lock.json
-locksmith review requirements.txt
-locksmith status
+QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ```
+
+Other official OpenAI-compatible endpoints are:
+
+| Region | `QWEN_BASE_URL` |
+| --- | --- |
+| Singapore | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+| US (Virginia) | `https://dashscope-us.aliyuncs.com/compatible-mode/v1` |
+| China (Beijing) | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+
+Do not mix a key from one region with another region's URL. See Alibaba Cloud's [first Qwen API call](https://www.alibabacloud.com/help/en/model-studio/first-api-call-to-qwen) and [OpenAI-compatible API reference](https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope) for the current model and endpoint details.
 
 ## Environment Variables
 
-No `.env.example` exists yet. Planned variables:
-
 | Variable | Purpose |
 | --- | --- |
-| `QWEN_API_KEY` | API key for Qwen Cloud model calls. |
-| `QWEN_MODEL` | Qwen model identifier used by the agent society. |
-| `DATABASE_URL` | Database connection string for review history and evidence vault. |
-| `GITHUB_TOKEN` | Optional token for higher GitHub API rate limits or private repo support later. |
-| `LOCKSMITH_WORKSPACE_ID` | Default workspace for local CLI/demo flows. |
+| `QWEN_API_KEY` | Model Studio API key. Omit it to use local mock mode. |
+| `QWEN_MODEL` | Model used for each agent inference. Defaults to `qwen-plus`. |
+| `QWEN_BASE_URL` | OpenAI-compatible regional endpoint. Defaults to Singapore. |
 
 ## Running Locally
 
-Current repo state:
-
-- `PLAN.md` contains the implementation plan.
-- `AGENTS.md` contains project-specific working instructions.
-- App scaffold and package scripts are not created yet.
-
-Once scaffolded, the expected local flow is:
+Start the app:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Project Structure
+Run one review directly against the local API:
 
-Planned monorepo shape:
-
-```text
-.
-├── apps/
-│   ├── web/              # Next.js app
-│   └── cli/              # Node CLI package
-├── packages/
-│   ├── agents/           # Six-agent orchestration
-│   ├── core/             # Dependency state, policy, verdict types
-│   ├── github/           # GitHub import client
-│   ├── scanners/         # Lockfile, manifest, static, behavior tools
-│   └── ui/               # Shared React UI components
-├── docs/
-│   └── demo-script.md
-├── AGENTS.md
-├── PLAN.md
-└── README.md
+```bash
+curl -sS -X POST http://localhost:3000/api/review \
+  -H 'Content-Type: application/json' \
+  -d '{"repo":"https://github.com/owner/repo"}'
 ```
 
-If build time is tight, the first implementation can use a single Next.js app with local folders:
+The response contains the dependency state ID, six structured agent findings, final verdict, remediation, and `mode` (`qwen` or `mock`). Use a small public npm repository for the first test to reduce GitHub fetching and model cost.
+
+## Project Structure
 
 ```text
 .
 ├── app/
+│   └── api/review/       # Local review endpoint
 ├── components/
-├── features/
-│   ├── repo-import/
-│   ├── dependency-review/
-│   ├── agent-timeline/
-│   ├── evidence-vault/
-│   └── cli-preview/
 ├── lib/
 │   ├── agents/
 │   ├── github/
 │   ├── qwen/
 │   ├── scanners/
 │   └── state/
-└── cli/
+└── README.md
 ```
 
 ## Demo / Screenshots

@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import "./review.css";
 
-const agents = [
+const demoAgents = [
   { n:"1", icon:"▱", name:"Baseline", claim:"Locked baseline is postcss 8.4.31 with no known critical vulnerabilities.", evidence:"evidence://baseline.json#L12–L18" },
   { n:"2", icon:"□", name:"Manifest", claim:"package.json updates postcss from 8.4.31 to 8.4.32 and adds a lifecycle script.", evidence:"evidence://manifest.json#L7–L12" },
   { n:"3", icon:"</>", name:"Static", claim:"The new install script reads process.env and prepares an outbound request.", evidence:"evidence://static.md#L45–L67" },
@@ -13,10 +13,15 @@ const agents = [
   { n:"6", icon:"⚖", name:"Judge", claim:"Behavior evidence confirms the static finding. Strict policy requires a block.", evidence:"evidence://verdict.json#L1–L24" },
 ] as const;
 
+type Finding = { role:string; summary:string; evidence:string[]; verdict:"Allow"|"Review"|"Block"; confidence:number };
+type ReviewResult = { dependencyStateId:string; findings:Finding[]; verdict:"Allow"|"Review"|"Block"; remediation?:string|string[]; mode?:string; model?:string };
+
 export default function ReviewPage() {
   const [repo, setRepo] = useState("https://github.com/northstar/storefront");
   const [phase, setPhase] = useState<"input"|"audit"|"report">("input");
   const [active, setActive] = useState(0);
+  const [result, setResult] = useState<ReviewResult|null>(null);
+  const [error, setError] = useState("");
   const timer = useRef<ReturnType<typeof setInterval>|null>(null);
   const parts = repo.replace("https://github.com/","").split("/");
 
@@ -26,18 +31,26 @@ export default function ReviewPage() {
   }, []);
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
-  function submit(event:FormEvent) {
+  async function submit(event:FormEvent) {
     event.preventDefault();
     if (timer.current) clearInterval(timer.current);
-    setPhase("audit"); setActive(0);
-    let step = 0;
+    setError(""); setResult(null); setPhase("audit"); setActive(0);
     timer.current = setInterval(() => {
-      step += 1;
-      if (step < agents.length) return setActive(step);
-      if (timer.current) clearInterval(timer.current);
-      setPhase("report");
-    }, 520);
+      setActive((step) => Math.min(step + 1, demoAgents.length - 1));
+    }, 900);
+    try {
+      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({repo}) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Review failed");
+      setResult(data); setActive(5); setPhase("report");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Review failed"); setPhase("input");
+    } finally { if (timer.current) clearInterval(timer.current); }
   }
+
+  const findings = result?.findings || [];
+  const verdict = result?.verdict || "Review";
+  const remediation = Array.isArray(result?.remediation) ? result.remediation.join(" · ") : result?.remediation || "Inspect the evidence before approving.";
 
   return <main className="review-page">
     <header className="app-header">
@@ -62,13 +75,14 @@ export default function ReviewPage() {
         <input id="review-repo" value={repo} onChange={(event)=>setRepo(event.target.value)} type="url" required />
         <button type="submit">Scan repository</button>
       </form>
+      {error ? <p role="alert" style={{color:"var(--red)",fontFamily:"var(--mono)",fontSize:14}}>{error}</p> : null}
       <small>Prepared public-repository demo · strict policy · no sign-in required</small>
     </section> : null}
 
     {phase === "audit" ? <section className="audit-screen" aria-live="polite">
       <div className="audit-head"><div><p className="eyebrow">Live dependency review</p><h1>Building the case.</h1></div><strong>{String(active+1).padStart(2,"0")} / 06</strong></div>
       <div className="audit-repo"><i /> Reviewing <code>{repo}</code></div>
-      <ol>{agents.map((agent,index)=><li className={index<active?"done":index===active?"active":"waiting"} key={agent.name}><span>{agent.n}</span><b>{agent.name}</b><p>{index<=active?agent.claim:"Waiting for prior evidence"}</p><em>{index<active?"Complete":index===active?"Inspecting":"Queued"}</em></li>)}</ol>
+      <ol>{demoAgents.map((agent,index)=><li className={index<active?"done":index===active?"active":"waiting"} key={agent.name}><span>{agent.n}</span><b>{agent.name}</b><p>{index<=active?`Running ${agent.name.toLowerCase()} analysis…`:"Waiting for prior evidence"}</p><em>{index<active?"Complete":index===active?"Inspecting":"Queued"}</em></li>)}</ol>
     </section> : null}
 
     {phase === "report" ? <section className="review-workspace" aria-live="polite">
@@ -83,22 +97,21 @@ export default function ReviewPage() {
         <section className="discussion" aria-labelledby="discussion-title">
           <h2 id="discussion-title">Agent discussion</h2>
           <div className="discussion-head"><span>#</span><b>Role</b><b>Claim</b><b>Evidence</b></div>
-          <ol>{agents.map((agent)=><li className={`discussion-row row-${agent.n}`} key={agent.name}>
-            <span>{agent.n}</span><i aria-hidden="true">{agent.icon}</i><strong>{agent.name}</strong><p>{agent.claim}</p><a href={`#agent-${agent.n}`}>{agent.evidence}</a>
-          </li>)}</ol>
+          <ol>{findings.map((finding,index)=>{const evidence=Array.isArray(finding.evidence)?finding.evidence.join(" · "):finding.evidence; return <li className={`discussion-row row-${index+1}`} id={`agent-${index+1}`} key={`${finding.role}-${index}`}>
+            <span>{index+1}</span><i aria-hidden="true">{demoAgents[index]?.icon || "·"}</i><strong>{finding.role}</strong><p>{finding.summary}</p><a href={`#agent-${index+1}`} title={`${finding.verdict} · ${Math.round(finding.confidence * 100)}% confidence`}>{evidence || "No evidence supplied"}</a>
+          </li>})}</ol>
         </section>
       </div>
 
       <aside className="decision-panel">
-        <div className="block-word">BLOCK</div>
+        <div className={`block-word verdict-${verdict.toLowerCase()}`}>{verdict.toUpperCase()}</div>
         <dl>
-          <div><dt>Global analysis</dt><dd>Confirmed risk</dd></div>
-          <div><dt>Your workspace</dt><dd>Approval required</dd></div>
+          <div><dt>Global analysis</dt><dd>{result?.mode || "Local review"}</dd></div>
+          <div><dt>Model</dt><dd>{result?.model || "Qwen"}</dd></div>
           <div><dt>Policy</dt><dd>Strict</dd></div>
-          <div><dt>State ID</dt><dd><code>st_01HJZ7Q4Y5B8X2M9K3T6F1D2</code></dd></div>
+          <div><dt>State ID</dt><dd><code>{result?.dependencyStateId}</code></dd></div>
         </dl>
-        <div className="remediation"><span>Remediation</span><p>Pin postcss 8.4.31</p></div>
-        <button type="button">Apply safe version</button>
+        <div className="remediation"><span>Remediation</span><p>{remediation}</p></div>
         <a href="#evidence">Open evidence bundle</a>
       </aside>
     </section> : null}
