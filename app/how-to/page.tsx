@@ -1,11 +1,16 @@
 import Link from "next/link";
 import "./how-to.css";
-import "./terminal-guide.css";
 
 const webSteps = [
-  ["01", "Paste a public repository", "Use a GitHub URL. This prototype loads prepared dependency evidence."],
-  ["02", "Watch six agents review", "Baseline, Manifest, Static, Behavior, Skeptic, and Judge inspect the change in order."],
-  ["03", "Act on the verdict", "Allow, review, or block the exact dependency state under workspace policy."],
+  ["01", "Import repository", "Paste a public GitHub URL. Locksmith reads dependency files and computes the dependency state."],
+  ["02", "Review agent evidence", "Six specialists inspect the diff. Skeptic challenges findings before Judge resolves the verdict."],
+  ["03", "Apply decision", "Allow, review, or block this exact state. If blocked, pin the last approved version."],
+] as const;
+
+const terminalSteps = [
+  ["01", "Scan current project", "$ locksmith scan .", "Run inside the repository before installing or merging."],
+  ["02", "Review one lockfile", "$ locksmith review package-lock.json", "Target npm or Python dependency files directly."],
+  ["03", "Read trust status", "$ locksmith status", "Compare global evidence with your workspace decision."],
 ] as const;
 
 export default function HowToPage() {
@@ -13,29 +18,23 @@ export default function HowToPage() {
     <section className="how-hero wrap">
       <p className="eyebrow">How to use Locksmith</p>
       <h1>Two surfaces.<br />One decision.</h1>
-      <p>Start in the browser for a shared review, or scan locally before an install. Both resolve dependency trust by repo state—not package reputation alone.</p>
+      <p>Use web UI for shared review. Use terminal before install or merge. Both resolve same dependency state.</p>
     </section>
     <section className="how-grid wrap">
       <article>
-        <div className="surface-head"><span className="eyebrow">Web version</span><code>github.com/owner/repo</code></div>
-        <h2>Review with context.</h2>
+        <div className="surface-head"><span className="eyebrow">Web UI</span><code>github.com/owner/repo</code></div>
+        <h2>Shared review.</h2>
         <ol>{webSteps.map(([n,title,body]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}</ol>
         <Link className="button" href="/review">Start web review <span aria-hidden="true">→</span></Link>
       </article>
       <article>
-        <div className="surface-head"><span className="eyebrow">Terminal version</span><code>locksmith scan .</code></div>
-        <h2>Check before install.</h2>
-        <p className="prototype-warning"><strong>Prototype syntax.</strong> The CLI is a hardcoded demo and is not packaged for installation yet.</p>
-        <div className="command-guide">
-          <section><span>01 / Scan project</span><p>Run from the folder containing your dependency files.</p><pre><code><b>$</b> locksmith scan .</code></pre></section>
-          <section><span>02 / Review one file</span><p>Target an npm lockfile or Python requirements file.</p><pre><code><b>$</b> locksmith review package-lock.json{"\n"}<b>$</b> locksmith review requirements.txt</code></pre></section>
-          <section><span>03 / Check trust state</span><p>See global evidence and your workspace decision.</p><pre><code><b>$</b> locksmith status</code></pre></section>
-          <section><span>04 / Read the result</span><pre className="sample-output"><code>Dependency state  state_74fd9e2c{"\n"}Global evidence  reviewed{"\n"}Workspace status review required{"\n"}Verdict          BLOCK{"\n"}Action           pin colors@2.0.0</code></pre></section>
-        </div>
+        <div className="surface-head"><span className="eyebrow">Terminal</span><code>locksmith scan .</code></div>
+        <h2>Pre-install check.</h2>
+        <ol>{terminalSteps.map(([n,title,command,body]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><code className="step-command">{command}</code><p>{body}</p></div></li>)}</ol>
         <Link className="button secondary" href="/terminal">See terminal demo <span aria-hidden="true">→</span></Link>
       </article>
     </section>
-    <section className="state-explainer wrap">
+    <section className="state-explainer wrap" id="trust-model">
       <p className="eyebrow">Shared trust model</p><h2>Same repo + commit + lockfile = same dependency state.</h2>
       <div><span>Global evidence</span><span aria-hidden="true">→</span><span>Workspace decision</span><span aria-hidden="true">→</span><span>Install or merge</span></div>
     </section>
