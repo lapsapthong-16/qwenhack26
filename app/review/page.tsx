@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import RepoSearch from "../components/RepoSearch";
 import "./review.css";
 
 const demoAgents = [
@@ -31,15 +32,13 @@ export default function ReviewPage() {
   }, []);
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
-  async function submit(event:FormEvent) {
-    event.preventDefault();
+  async function runReview(payload:{ repo?:string; branch?:string } = {}) {
     if (timer.current) clearInterval(timer.current);
+    if (payload.repo) setRepo(payload.repo);
     setError(""); setResult(null); setPhase("audit"); setActive(0);
-    timer.current = setInterval(() => {
-      setActive((step) => Math.min(step + 1, demoAgents.length - 1));
-    }, 900);
+    timer.current = setInterval(() => setActive((step) => Math.min(step + 1, demoAgents.length - 1)), 900);
     try {
-      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({repo}) });
+      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Review failed");
       setResult(data); setActive(5); setPhase("report");
@@ -69,12 +68,7 @@ export default function ReviewPage() {
       <p className="eyebrow">Workspace review / new state</p>
       <h1>Review a dependency state.</h1>
       <p>Compare the lockfile, collect six specialist findings, and decide what enters your workspace.</p>
-      <form onSubmit={submit} className="review-import">
-        <span aria-hidden="true">&gt;_</span>
-        <label className="sr-only" htmlFor="review-repo">GitHub repository</label>
-        <input id="review-repo" value={repo} onChange={(event)=>setRepo(event.target.value)} type="url" required />
-        <button type="submit">Scan repository</button>
-      </form>
+      <RepoSearch id="review-repo" initialRepo={repo} variant="review" onScan={runReview} />
       {error ? <p role="alert" style={{color:"var(--red)",fontFamily:"var(--mono)",fontSize:14}}>{error}</p> : null}
       <small>Prepared public-repository demo · strict policy · no sign-in required</small>
     </section> : null}

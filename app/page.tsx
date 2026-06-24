@@ -1,4 +1,5 @@
 import Link from "next/link";
+import RepoSearch from "./components/RepoSearch";
 import "./landing.css";
 
 const agents = [
@@ -20,12 +21,7 @@ export default function Home() {
           <p>Locksmith turns a lockfile diff into evidence your team can approve.</p>
         </div>
 
-        <form className="hero-command" action="/review" method="get">
-          <span aria-hidden="true">&gt;_</span>
-          <label className="sr-only" htmlFor="repo">GitHub repository</label>
-          <input id="repo" name="repo" type="url" defaultValue="https://github.com/northstar/storefront" required />
-          <button aria-label="Scan repository" type="submit">›</button>
-        </form>
+        <RepoSearch id="repo" variant="landing" />
 
         <div className="agent-flow" aria-label="Six agent review flow">
           {agents.map(([number, name, description], index) => (
