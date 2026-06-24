@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import RepoSearch from "../components/RepoSearch";
 import "./review.css";
 
 const demoAgents = [
-  { n:"1", icon:"▱", name:"Baseline", claim:"Locked baseline is postcss 8.4.31 with no known critical vulnerabilities.", evidence:"evidence://baseline.json#L12–L18" },
-  { n:"2", icon:"□", name:"Manifest", claim:"package.json updates postcss from 8.4.31 to 8.4.32 and adds a lifecycle script.", evidence:"evidence://manifest.json#L7–L12" },
-  { n:"3", icon:"</>", name:"Static", claim:"The new install script reads process.env and prepares an outbound request.", evidence:"evidence://static.md#L45–L67" },
-  { n:"4", icon:"△", name:"Behavior", claim:"Sandbox observed an outbound POST to an undeclared host during postinstall.", evidence:"evidence://behavior.json#L22–L91" },
-  { n:"5", icon:"?", name:"Skeptic", claim:"Could this be legitimate telemetry? The package documents no network feature.", evidence:"evidence://skeptic.md#L10–L38" },
-  { n:"6", icon:"⚖", name:"Judge", claim:"Behavior evidence confirms the static finding. Strict policy requires a block.", evidence:"evidence://verdict.json#L1–L24" },
+  { n:"1", icon:"▱", name:"Baseline" },
+  { n:"2", icon:"□", name:"Manifest" },
+  { n:"3", icon:"</>", name:"Static" },
+  { n:"4", icon:"△", name:"Behavior" },
+  { n:"5", icon:"?", name:"Skeptic" },
+  { n:"6", icon:"⚖", name:"Judge" },
 ] as const;
 
 type Finding = { role:string; summary:string; evidence:string[]; verdict:"Allow"|"Review"|"Block"; confidence:number };

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 type RepoInspection = { repoUrl:string; defaultBranch:string; branches:string[]; dependencyFiles:string[] };
 type ReviewResult = { verdict:"Allow"|"Review"|"Block"; dependencyStateId:string };
