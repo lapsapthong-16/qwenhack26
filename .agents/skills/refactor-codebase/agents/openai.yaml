@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor Codebase"
+  short_description: "Safely clean, simplify, and deepen an entire repository"
+  default_prompt: "Use $refactor-codebase to review architecture, safely clean this repository, then report every changed or deleted file."

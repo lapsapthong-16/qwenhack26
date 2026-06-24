@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "refactor-codebase": {
+      "source": "lapsapthong-16/my-skills",
+      "sourceType": "github",
+      "skillPath": "skills/refactor-codebase/SKILL.md",
+      "computedHash": "bf4f0e3190207f6cf3082f8592d7fe615309cc2ebf64686eda8e343c1e8a0d0a"
+    },
     "repo-illustrations": {
       "source": "lapsapthong-16/my-skills",
       "sourceType": "github",
