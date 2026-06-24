@@ -12,7 +12,10 @@ export type Finding = {
   confidence: number;
 };
 
-export type ReviewInput = { repoUrl?: string; files?: Record<string, string>; policy?: string };
+export type ReviewInput = { repoUrl?: string; branch?: string; files?: Record<string, string>; policy?: string };
+export type RepoInspection = { repoUrl: string; defaultBranch: string; branches: string[]; dependencyFiles: string[] };
+
+export const DEPENDENCY_FILES = ["package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "requirements.txt", "pyproject.toml"] as const;
 
 const demoFiles = {
   "package.json": JSON.stringify({ name: "locksmith-demo", dependencies: { "safe-logger": "1.0.0", "fast-env-sync": "1.5.0" } }, null, 2),
@@ -32,20 +35,43 @@ function githubCoordinates(url: string) {
   return match ? { owner: match[1], repo: match[2] } : null;
 }
 
+async function githubJson<T>(path: string): Promise<T> {
+  const response = await fetch(`https://api.github.com${path}`, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "locksmith-demo" },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (response.status === 404) throw new Error("Repository is private, missing, or not accessible without GitHub auth");
+  if (!response.ok) throw new Error(`GitHub lookup failed (${response.status})`);
+  return await response.json() as T;
+}
+
+export async function inspectGitHubRepo(repoUrl: string): Promise<RepoInspection> {
+  const coordinates = githubCoordinates(repoUrl);
+  if (!coordinates) throw new Error("Enter a GitHub repository URL like https://github.com/owner/repo");
+  const repo = await githubJson<{ default_branch: string; private: boolean }>(`/repos/${coordinates.owner}/${coordinates.repo}`);
+  if (repo.private) throw new Error("This repository is private. Locksmith cannot access it without GitHub auth.");
+  const branches = await githubJson<{ name: string }[]>(`/repos/${coordinates.owner}/${coordinates.repo}/branches?per_page=20`);
+  const tree = await githubJson<{ tree?: { path: string; type: string }[] }>(`/repos/${coordinates.owner}/${coordinates.repo}/git/trees/${encodeURIComponent(repo.default_branch)}?recursive=1`);
+  const names = new Set(tree.tree?.filter(item => item.type === "blob").map(item => item.path));
+  const dependencyFiles = DEPENDENCY_FILES.filter(name => names.has(name));
+  return { repoUrl, defaultBranch: repo.default_branch, branches: Array.from(new Set([repo.default_branch, ...branches.map(branch => branch.name)])), dependencyFiles };
+}
+
 export async function gatherEvidence(input: ReviewInput) {
   if (input.files && Object.keys(input.files).length) return { source: "submitted-files", files: input.files };
   if (!input.repoUrl) return { source: "demo", files: demoFiles };
   const coordinates = githubCoordinates(input.repoUrl);
   if (!coordinates) throw new Error("repoUrl must be a public GitHub repository URL");
-  const wanted = ["package.json", "package-lock.json", "requirements.txt", "pyproject.toml"];
+  const wanted = DEPENDENCY_FILES;
   const files: Record<string, string> = {};
   await Promise.all(wanted.map(async name => {
-    const url = `https://raw.githubusercontent.com/${coordinates.owner}/${coordinates.repo}/HEAD/${name}`;
+    const branch = encodeURIComponent(input.branch || "HEAD");
+    const url = `https://raw.githubusercontent.com/${coordinates.owner}/${coordinates.repo}/${branch}/${name}`;
     const response = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (response.ok) files[name] = (await response.text()).slice(0, 100_000);
   }));
   if (!Object.keys(files).length) throw new Error("No supported dependency files found in the public repository");
-  return { source: input.repoUrl, files };
+  return { source: `${input.repoUrl}#${input.branch || "HEAD"}`, files };
 }
 
 export function dependencyStateId(source: string, files: Record<string, string>) {
