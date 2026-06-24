@@ -33,7 +33,7 @@ export default function Home() {
             </article>
           ))}
           <aside className="hero-verdict" aria-label="Possible review verdict">
-            <span>Review</span><strong>✓</strong><b>REVIEW</b><p>Approve or block.<br />Ship with confidence.</p>
+            <span>Verdict</span><strong>!</strong><b>REVIEW</b><p>Approve or block.<br />Ship with confidence.</p>
           </aside>
         </div>
       </section>
