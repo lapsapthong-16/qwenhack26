@@ -22,6 +22,7 @@ export default function ReviewPage() {
   const [active, setActive] = useState(0);
   const [result, setResult] = useState<ReviewResult|null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval>|null>(null);
   const parts = repo.replace("https://github.com/","").split("/");
 
@@ -31,21 +32,25 @@ export default function ReviewPage() {
   }, []);
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
-  async function submit(event:FormEvent) {
-    event.preventDefault();
+  async function runReview(payload:{ repo?:string } = { repo }) {
     if (timer.current) clearInterval(timer.current);
-    setError(""); setResult(null); setPhase("audit"); setActive(0);
+    setError(""); setResult(null); setBusy(true); setPhase("audit"); setActive(0);
     timer.current = setInterval(() => {
       setActive((step) => Math.min(step + 1, demoAgents.length - 1));
     }, 900);
     try {
-      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({repo}) });
+      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Review failed");
       setResult(data); setActive(5); setPhase("report");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Review failed"); setPhase("input");
-    } finally { if (timer.current) clearInterval(timer.current); }
+    } finally { setBusy(false); if (timer.current) clearInterval(timer.current); }
+  }
+
+  async function submit(event:FormEvent) {
+    event.preventDefault();
+    await runReview({ repo });
   }
 
   const findings = result?.findings || [];
@@ -76,6 +81,7 @@ export default function ReviewPage() {
         <button type="submit">Scan repository</button>
       </form>
       {error ? <p role="alert" style={{color:"var(--red)",fontFamily:"var(--mono)",fontSize:14}}>{error}</p> : null}
+      <button className="demo-review" type="button" onClick={()=>runReview({})} disabled={busy}>Run six-agent demo</button>
       <small>Prepared public-repository demo · strict policy · no sign-in required</small>
     </section> : null}
 
