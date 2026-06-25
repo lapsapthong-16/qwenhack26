@@ -1,5 +1,6 @@
 .next/
 node_modules/
 *.tsbuildinfo
+.locksmith/
 .env*
 !.env.example
