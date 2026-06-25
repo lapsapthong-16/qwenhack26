@@ -15,7 +15,8 @@ export type ReviewJob = {
   updatedAt: string;
 };
 
-const jobs = new Map<string, ReviewJob>();
+const globalJobs = globalThis as typeof globalThis & { __locksmithReviewJobs?: Map<string, ReviewJob> };
+const jobs = globalJobs.__locksmithReviewJobs ??= new Map<string, ReviewJob>();
 
 function touch(job: ReviewJob) {
   job.updatedAt = new Date().toISOString();

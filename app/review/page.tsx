@@ -67,6 +67,7 @@ export default function ReviewPage() {
       const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Review failed");
+      if (!data.reviewId) throw new Error("Review did not start. Try again.");
       await loadJob(data.reviewId);
       poll.current = setInterval(() => void loadJob(data.reviewId).catch(cause => {
         if (poll.current) clearInterval(poll.current);
@@ -91,7 +92,6 @@ export default function ReviewPage() {
       <p>Locksmith retrieves real dependency files, sends them through six specialist Qwen agents, and saves the result locally.</p>
       <RepoSearch id="review-repo" initialRepo={repo} variant="review" onScan={runReview} />
       {error ? <p role="alert" style={{color:"var(--red)",fontFamily:"var(--mono)",fontSize:14}}>{error}</p> : null}
-      <small>Requires QWEN_API_KEY · history is local-only · behavior is inferred from retrieved files</small>
     </section> : null}
 
     {phase === "audit" ? <section className="audit-screen" aria-live="polite">

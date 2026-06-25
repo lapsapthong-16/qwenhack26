@@ -43,11 +43,7 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
       }
       setStatus("Scanning dependency state...");
       if (onScan) return await onScan({ repo, branch });
-      const response = await fetch("/api/review", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({repo, branch}) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Review failed");
-      setStatus("Scan complete.");
-      setResult(data);
+      window.location.href = `/review?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`;
     } catch (cause) {
       setStatus("");
       setError(cause instanceof Error ? cause.message : "Repository lookup failed");
@@ -69,11 +65,13 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
     </form>
 
     {inspection ? <div className={`${prefix}-repo-inspection repo-inspection`}>
-      <div><b>Dependency files</b><span>{inspection.dependencyFiles.join(" · ")}</span></div>
-      <label htmlFor={`${id}-branch`}>Branch</label>
-      <select id={`${id}-branch`} value={branch} onChange={(event)=>setBranch(event.target.value)}>
-        {inspection.branches.map(name => <option value={name} key={name}>{name}</option>)}
-      </select>
+      <div className="repo-files"><b>Dependency files</b><span>{inspection.dependencyFiles.map(file => <code key={file}>{file}</code>)}</span></div>
+      <div className="repo-branch">
+        <label htmlFor={`${id}-branch`}>Branch</label>
+        <select id={`${id}-branch`} value={branch} onChange={(event)=>setBranch(event.target.value)}>
+          {inspection.branches.map(name => <option value={name} key={name}>{name}</option>)}
+        </select>
+      </div>
     </div> : null}
 
     {status ? <p className={`${prefix}-repo-status`} aria-live="polite">{status}</p> : null}
