@@ -106,11 +106,13 @@ function validFinding(value: unknown, role: Role): Finding {
 async function infer(role: Role, files: Record<string, string>, previous: Finding[], policy: string, stateId: string): Promise<Finding> {
   const key = process.env.QWEN_API_KEY;
   if (!key) throw new Error("QWEN_API_KEY is required for real agent analysis");
+  const model = process.env.QWEN_MODEL;
+  if (!model) throw new Error("QWEN_MODEL is required for real agent analysis");
   const baseUrl = (process.env.QWEN_BASE_URL || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1").replace(/\/$/, "");
   const dependencyFiles = Object.fromEntries(Object.entries(files).map(([name, content]) => [name, content.slice(0, 60_000)]));
   const response = await fetch(baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`, {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, signal: AbortSignal.timeout(60_000),
-    body: JSON.stringify({ model: process.env.QWEN_MODEL || "qwen-plus", temperature: 0.1, response_format: { type: "json_object" }, messages: [
+    body: JSON.stringify({ model, temperature: 0.1, response_format: { type: "json_object" }, messages: [
       { role: "system", content: `${AGENT_PROMPTS[role]} Return only JSON: {\"verdict\":\"Allow|Review|Block\",\"summary\":\"...\",\"evidence\":[\"...\"],\"confidence\":0.0}. Never invent evidence. Never claim a previous baseline, approval, vulnerability, publish date, or sandbox observation unless it appears in the supplied JSON.` },
       { role: "user", content: JSON.stringify({ policy, dependencyStateId: stateId, previousReview: null, retrievedFileNames: Object.keys(dependencyFiles).sort(), dependencyFiles, previousFindings: previous }) },
     ] }),
@@ -142,7 +144,7 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
     branch: input.branch,
     policy,
     mode: "qwen",
-    model: process.env.QWEN_MODEL || "qwen-plus",
+    model: process.env.QWEN_MODEL!,
     files: Object.keys(evidence.files).sort(),
     findings,
     verdict: judge.verdict,
