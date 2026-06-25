@@ -12,7 +12,7 @@ type Props = {
   onScan?: (input:{ repo:string; branch:string }) => Promise<void>;
 };
 
-export default function RepoSearch({ id, initialRepo = "https://github.com/northstar/storefront", variant, onScan }: Props) {
+export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Props) {
   const [repo, setRepo] = useState(initialRepo);
   const [branch, setBranch] = useState("");
   const [inspection, setInspection] = useState<RepoInspection|null>(null);
@@ -64,7 +64,7 @@ export default function RepoSearch({ id, initialRepo = "https://github.com/north
     <form onSubmit={submit} className={formClass}>
       <span aria-hidden="true">&gt;_</span>
       <label className="sr-only" htmlFor={id}>GitHub repository</label>
-      <input id={id} value={repo} onChange={(event)=>{setRepo(event.target.value); setInspection(null); setStatus("");}} type="url" required />
+      <input id={id} value={repo} onChange={(event)=>{setRepo(event.target.value); setInspection(null); setStatus("");}} type="url" placeholder="https://github.com/owner/repo" required />
       <button className={variant === "landing" && buttonText !== "›" ? "button-text" : ""} aria-label="Scan repository" type="submit" disabled={busy}>{buttonText}</button>
     </form>
 

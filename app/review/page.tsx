@@ -28,12 +28,11 @@ type ReviewJob = {
 };
 
 export default function ReviewPage() {
-  const [repo, setRepo] = useState("https://github.com/Avoisavo/roadblock");
+  const [repo, setRepo] = useState("");
   const [phase, setPhase] = useState<"input"|"audit"|"report">("input");
   const [job, setJob] = useState<ReviewJob|null>(null);
   const [error, setError] = useState("");
   const poll = useRef<ReturnType<typeof setInterval>|null>(null);
-  const parts = repo.replace("https://github.com/","").split("/");
 
   useEffect(() => {
     const imported = new URLSearchParams(window.location.search).get("repo");
@@ -86,16 +85,6 @@ export default function ReviewPage() {
   const completed = new Set(job?.completedRoles || findings.map(finding => finding.role));
 
   return <main className="review-page">
-    <header className="app-header">
-      <Link className="app-brand" href="/"><span className="app-mark" aria-hidden="true" />Locksmith</Link>
-      <span className="app-divider" />
-      <span className="repo-crumb">▣&nbsp; {parts[0] || "Avoisavo"} <b>/</b> {parts[1] || "roadblock"}</span>
-      <span className="app-divider" />
-      <span className="repo-meta">⑂&nbsp; main</span>
-      <Link className="command-search" href="/history">View local history</Link>
-      <span className="avatar">LS<i /></span>
-    </header>
-
     {phase === "input" ? <section className="review-start">
       <p className="eyebrow">Workspace review / Qwen live analysis</p>
       <h1>Review a dependency state.</h1>
