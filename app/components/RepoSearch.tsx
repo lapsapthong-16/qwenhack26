@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 type RepoInspection = { repoUrl:string; defaultBranch:string; branches:string[]; dependencyFiles:string[] };
-type ReviewResult = { verdict:"Allow"|"Review"|"Block"; dependencyStateId:string };
 
 type Props = {
   id: string;
@@ -16,7 +15,6 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
   const [repo, setRepo] = useState(initialRepo);
   const [branch, setBranch] = useState("");
   const [inspection, setInspection] = useState<RepoInspection|null>(null);
-  const [result, setResult] = useState<ReviewResult|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -30,7 +28,7 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setError(""); setResult(null); setBusy(true);
+    setError(""); setBusy(true);
     try {
       if (!inspection || inspection.repoUrl !== repo) {
         setStatus("Searching GitHub repository...");
@@ -75,7 +73,6 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
     </div> : null}
 
     {status ? <p className={`${prefix}-repo-status`} aria-live="polite">{status}</p> : null}
-    {result ? <p className={`${prefix}-repo-result`}><b>{result.verdict}</b> <code>{result.dependencyStateId}</code></p> : null}
     {error ? <p className={`${prefix}-repo-error`} role="alert">{error}</p> : null}
   </>;
 }

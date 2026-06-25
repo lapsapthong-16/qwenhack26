@@ -9,8 +9,8 @@ const webSteps = [
 
 const terminalSteps = [
   ["01", "Scan current project", "$ locksmith scan .", "Run inside the repository before installing or merging."],
-  ["02", "Review one lockfile", "$ locksmith review package-lock.json", "Target npm or Python dependency files directly."],
-  ["03", "Read trust status", "$ locksmith status", "Compare global evidence with your workspace decision."],
+  ["02", "Read panel findings", "Six Qwen agents", "Review each role's finding and the Judge verdict."],
+  ["03", "Use the smallest fix", "Pin, remove, or wait", "Apply the Judge remediation before installing or merging."],
 ] as const;
 
 export default function HowToPage() {

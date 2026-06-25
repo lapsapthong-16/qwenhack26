@@ -141,7 +141,7 @@ export default function ReviewPage() {
           <div><dt>State ID</dt><dd><code>{result.dependencyStateId}</code></dd></div>
         </dl>
         <div className="remediation"><span>Remediation</span><p>{result.remediation}</p></div>
-        <Link href="/history">Open local history</Link>
+        <Link href="/history">View history</Link>
       </aside>
     </section> : null}
   </main>;
