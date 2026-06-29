@@ -16,12 +16,14 @@ const agents = [
 
 type Verdict = "Allow" | "Review" | "Block";
 type Finding = { role:string; summary:string; evidence:string[]; verdict:Verdict; confidence:number };
-type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string };
+type PackageEvidence = { name:string; version:string; dependencyType:"dependencies"; fileCount:number; files:string[]; inspectedFiles:{path:string;reason:string;content:string}[]; status:Verdict; reason:string; evidence?:string[] };
+type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string };
 type ReviewJob = {
   reviewId:string;
-  status:"queued"|"running"|"complete"|"failed";
+  status:"queued"|"retrieving-packages"|"running"|"complete"|"failed";
   currentRole?:string;
   completedRoles:string[];
+  packages:PackageEvidence[];
   findings:Finding[];
   result?:ReviewResult;
   error?:string;
@@ -33,10 +35,17 @@ export default function ReviewPage() {
   const [job, setJob] = useState<ReviewJob|null>(null);
   const [error, setError] = useState("");
   const poll = useRef<ReturnType<typeof setInterval>|null>(null);
+  const autoStarted = useRef(false);
 
   useEffect(() => {
-    const imported = new URLSearchParams(window.location.search).get("repo");
-    if (imported?.startsWith("https://github.com/")) setRepo(imported);
+    const params = new URLSearchParams(window.location.search);
+    const imported = params.get("repo");
+    const branch = params.get("branch") || undefined;
+    if (!imported?.startsWith("https://github.com/")) return;
+    setRepo(imported);
+    if (autoStarted.current) return;
+    autoStarted.current = true;
+    void runReview({ repo: imported, branch });
   }, []);
 
   useEffect(() => () => { if (poll.current) clearInterval(poll.current); }, []);
@@ -82,6 +91,7 @@ export default function ReviewPage() {
 
   const result = job?.result;
   const findings = job?.findings || result?.findings || [];
+  const packages = result?.packages || job?.packages || [];
   const verdict = result?.verdict || "Review";
   const completed = new Set(job?.completedRoles || findings.map(finding => finding.role));
 
@@ -97,6 +107,10 @@ export default function ReviewPage() {
     {phase === "audit" ? <section className="audit-screen" aria-live="polite">
       <div className="audit-head"><div><p className="eyebrow">Live dependency review</p><h1>Building the case.</h1></div><strong>{findings.length.toString().padStart(2,"0")} / 06</strong></div>
       <div className="audit-repo"><i /> Reviewing <code>{repo}</code></div>
+      {job?.status === "retrieving-packages" || packages.length ? <section className="package-panel">
+        <h2>Retrieved npm packages</h2>
+        <div className="package-grid">{packages.length ? packages.map(pkg => <PackageCard pkg={pkg} key={`${pkg.name}@${pkg.version}`} />) : <p>Fetching package tarballs...</p>}</div>
+      </section> : null}
       <ol>{agents.map(agent => {
         const finding = findings.find(item => item.role === agent.name);
         const status = finding ? "done" : job?.currentRole === agent.name ? "active" : "waiting";
@@ -116,6 +130,12 @@ export default function ReviewPage() {
           <h2 id="diff-title">Retrieved dependency files</h2>
           <div className="diff-head"><b>File</b><b>Source</b><span /><b>State</b><b>Mode</b><b>Policy</b></div>
           {result.files.map(file => <div className="diff-data" key={file}><code>{file}</code><code>{result.source}</code><span>→</span><code>{result.dependencyStateId}</code><code>{result.mode}</code><code>strict</code></div>)}
+        </section>
+
+        <section className="package-panel" aria-labelledby="packages-title">
+          <h2 id="packages-title">Reviewed npm packages</h2>
+          <p className="package-summary">{result.packageSummary}</p>
+          <div className="package-grid">{packages.map(pkg => <PackageCard pkg={pkg} key={`${pkg.name}@${pkg.version}`} />)}</div>
         </section>
 
         <section className="discussion" aria-labelledby="discussion-title">
@@ -145,4 +165,14 @@ export default function ReviewPage() {
       </aside>
     </section> : null}
   </main>;
+}
+
+function PackageCard({ pkg }:{ pkg:PackageEvidence }) {
+  return <article className={`package-card status-${pkg.status.toLowerCase()}`}>
+    <header><div><strong>{pkg.name}</strong><code>{pkg.version}</code></div><b>{pkg.status}</b></header>
+    <p>{pkg.reason}</p>
+    <dl><div><dt>Type</dt><dd>{pkg.dependencyType}</dd></div><div><dt>Files</dt><dd>{pkg.fileCount}</dd></div><div><dt>Inspected</dt><dd>{pkg.inspectedFiles.map(file => file.path).join(" · ") || "None"}</dd></div></dl>
+    {pkg.evidence?.length ? <small>{pkg.evidence.join(" · ")}</small> : null}
+    <details><summary>All internal files</summary><ol>{pkg.files.map(file => <li key={file}>{file}</li>)}</ol></details>
+  </article>;
 }

@@ -16,8 +16,18 @@ export async function readHistory(): Promise<HistoryFile> {
 }
 
 export async function saveReview(review: ReviewResult) {
+  const stored: ReviewResult = {
+    ...review,
+    packages: review.packages
+      .filter(pkg => pkg.status !== "Allow")
+      .map(pkg => ({
+        ...pkg,
+        files: [],
+        inspectedFiles: pkg.inspectedFiles.map(file => ({ path: file.path, reason: file.reason, content: file.content.slice(0, 240) })),
+      })),
+  };
   const history = await readHistory();
-  const reviews = [review, ...history.reviews.filter(item => item.reviewId !== review.reviewId)].slice(0, 100);
+  const reviews = [stored, ...history.reviews.filter(item => item.reviewId !== review.reviewId)].slice(0, 100);
   await mkdir(dirname(historyPath), { recursive: true });
   await writeFile(historyPath, JSON.stringify({ reviews }, null, 2));
 }

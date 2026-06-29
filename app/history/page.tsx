@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import "./history.css";
 
 type Finding = { role:string; summary:string; evidence:string[]; verdict:string; confidence:number };
+type PackageEvidence = { name:string; version:string; dependencyType:"dependencies"; fileCount:number; files:string[]; inspectedFiles:{path:string;reason:string;content:string}[]; status:string; reason:string; evidence?:string[] };
 type Review = {
   reviewId:string;
   createdAt:string;
@@ -13,6 +14,10 @@ type Review = {
   remediation:string;
   model:string;
   files:string[];
+  packages:PackageEvidence[];
+  packageCount:number;
+  inspectedPackageCount:number;
+  packageSummary:string;
   findings:Finding[];
 };
 
@@ -45,6 +50,7 @@ export default function HistoryPage() {
             <em>Run #{reviews.length - index}</em>
             <span>{review.source}</span>
             <code>{review.dependencyStateId}</code>
+            <small>{review.packageSummary}</small>
             <time dateTime={review.createdAt}>{review.createdAt ? new Date(review.createdAt).toLocaleString() : "Saved review"}</time>
           </button>
         </li>)}</ol>
@@ -57,6 +63,7 @@ export default function HistoryPage() {
             <div><dt>Run time</dt><dd><time dateTime={selected.createdAt}>{selected.createdAt ? new Date(selected.createdAt).toLocaleString() : "Saved review"}</time></dd></div>
             <div><dt>Source</dt><dd>{selected.source}</dd></div>
             <div><dt>Files</dt><dd>{selected.files.join(" · ")}</dd></div>
+            <div><dt>Packages</dt><dd>{selected.packageSummary || `${selected.packageCount || 0} npm packages reviewed`}</dd></div>
             <div><dt>Model</dt><dd>{selected.model}</dd></div>
             <div><dt>State</dt><dd><code>{selected.dependencyStateId}</code></dd></div>
           </dl>
@@ -67,6 +74,14 @@ export default function HistoryPage() {
               <p>{finding.summary}</p>
               <small>{finding.evidence.join(" · ")}</small>
             </li>)}</ol>
+          </section>
+          <section>
+            <h2>Package evidence</h2>
+            {selected.packages?.length ? <ol>{selected.packages.map(pkg => <li className={`history-package status-${pkg.status.toLowerCase()}`} key={`${pkg.name}@${pkg.version}`}>
+              <strong>{pkg.name}</strong><b>{pkg.status}</b>
+              <p>{pkg.reason}</p>
+              <small>{pkg.inspectedFiles.map(file => `${file.path}: ${file.content || file.reason}`).join(" · ") || pkg.evidence?.join(" · ")}</small>
+            </li>)}</ol> : <p className="safe-summary">{selected.packageSummary || "All reviewed production npm packages were allowed. No flagged package evidence was saved locally."}</p>}
           </section>
           <section>
             <h2>Verdict</h2>

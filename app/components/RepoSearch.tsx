@@ -36,8 +36,11 @@ export default function RepoSearch({ id, initialRepo = "", variant, onScan }: Pr
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Repository lookup failed");
         if (!data.dependencyFiles?.length) throw new Error("Public repository found, but no supported dependency files were detected.");
-        setStatus("Repository found. Choose branch, then scan.");
-        setInspection(data); setBranch(data.defaultBranch); return;
+        setInspection(data); setBranch(data.defaultBranch);
+        setStatus("Scanning dependency state...");
+        if (onScan) return await onScan({ repo, branch: data.defaultBranch });
+        window.location.href = `/review?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(data.defaultBranch)}`;
+        return;
       }
       setStatus("Scanning dependency state...");
       if (onScan) return await onScan({ repo, branch });
