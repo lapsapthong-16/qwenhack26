@@ -53,41 +53,41 @@ Core surfaces:
 
 ```mermaid
 flowchart TD
-  A[Developer] --> B{Choose surface}
-  B --> C[Web: paste public GitHub repo]
-  B --> D[CLI: scan local project]
-  C --> E[Retrieve dependency files]
+  A["Developer"] --> B{"Choose surface"}
+  B --> C["Web: paste public GitHub repo"]
+  B --> D["CLI: scan local project"]
+  C --> E["Retrieve dependency files"]
   D --> E
-  E --> F[Compute dependency state ID]
-  F --> G[Resolve direct npm and PyPI packages]
-  G --> H[Fetch package artifacts]
-  H --> I[Select internal files for evidence]
-  I --> J[Run six Qwen agents]
-  J --> K[Judge returns Allow / Review / Block]
-  K --> L[Save completed review locally]
-  L --> M[View review history]
+  E --> F["Compute dependency state ID"]
+  F --> G["Resolve direct npm and PyPI packages"]
+  G --> H["Fetch package artifacts"]
+  H --> I["Select internal files for evidence"]
+  I --> J["Run six Qwen agents"]
+  J --> K["Judge returns Allow / Review / Block"]
+  K --> L["Save completed review locally"]
+  L --> M["View review history"]
 ```
 
 ## System Architecture Flow
 
 ```mermaid
 flowchart LR
-  A[Browser UI] --> B[Next.js App Router]
-  B --> C[/api/repo]
-  B --> D[/api/review]
-  B --> E[/api/review/:id]
-  B --> F[/api/history]
-  C --> G[GitHub REST API]
-  D --> H[In-memory review job store]
-  H --> I[Locksmith core engine]
-  I --> J[Raw GitHub dependency files]
-  I --> K[npm registry and tarballs]
-  I --> L[PyPI JSON and artifacts]
-  I --> M[Qwen OpenAI-compatible API]
-  I --> N[Dependency state hash]
-  H --> O[.locksmith/reviews.json]
+  A["Browser UI"] --> B["Next.js App Router"]
+  B --> C["/api/repo"]
+  B --> D["/api/review"]
+  B --> E["/api/review/:id"]
+  B --> F["/api/history"]
+  C --> G["GitHub REST API"]
+  D --> H["In-memory review job store"]
+  H --> I["Locksmith core engine"]
+  I --> J["Raw GitHub dependency files"]
+  I --> K["npm registry and tarballs"]
+  I --> L["PyPI JSON and artifacts"]
+  I --> M["Qwen OpenAI-compatible API"]
+  I --> N["Dependency state hash"]
+  H --> O[".locksmith/reviews.json"]
   F --> O
-  P[Node CLI] --> I
+  P["Node CLI"] --> I
 ```
 
 ## Six-Agent Review Panel
