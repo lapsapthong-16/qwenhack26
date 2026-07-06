@@ -13,7 +13,7 @@ export type PackageFinding = { name: string; version: string; verdict: Verdict; 
 export type PackageEvidence = {
   name: string;
   version: string;
-  dependencyType: "dependencies";
+  dependencyType: string;
   tarballUrl?: string;
   fileCount: number;
   files: string[];
@@ -142,15 +142,27 @@ async function inspectPackage(name: string, version: string): Promise<PackageEvi
 }
 
 export async function collectNpmPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress) {
-  if (!files["package-lock.json"]) throw new Error("package-lock.json is required for npm package review. Commit a lockfile and scan again.");
+  if (!files["package.json"]) return [];
   const manifest = parseJson<{ dependencies?: Record<string, string> }>("package.json", files["package.json"]);
+  if (!files["package-lock.json"]) {
+    return Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES).map(name => ({
+      name,
+      version: "unresolved",
+      dependencyType: "npm:dependencies",
+      fileCount: 0,
+      files: [],
+      inspectedFiles: [],
+      status: "Review" as Verdict,
+      reason: "package-lock.json is required to resolve and inspect the exact npm package version.",
+    }));
+  }
   const lock = parseJson<Record<string, any>>("package-lock.json", files["package-lock.json"]);
   const deps = Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES);
   const packages: PackageEvidence[] = [];
   for (const name of deps) {
     const version = lockVersion(lock, name);
     if (!version) {
-      packages.push({ name, version: "unresolved", dependencyType: "dependencies", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
+        packages.push({ name, version: "unresolved", dependencyType: "npm:dependencies", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
     } else {
       try {
         packages.push(await inspectPackage(name, version));

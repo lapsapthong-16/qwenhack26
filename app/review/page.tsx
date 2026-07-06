@@ -16,7 +16,7 @@ const agents = [
 
 type Verdict = "Allow" | "Review" | "Block";
 type Finding = { role:string; summary:string; evidence:string[]; verdict:Verdict; confidence:number };
-type PackageEvidence = { name:string; version:string; dependencyType:"dependencies"; fileCount:number; files:string[]; inspectedFiles:{path:string;reason:string;content:string}[]; status:Verdict; reason:string; evidence?:string[] };
+type PackageEvidence = { name:string; version:string; dependencyType:string; fileCount:number; files:string[]; inspectedFiles:{path:string;reason:string;content:string}[]; status:Verdict; reason:string; evidence?:string[] };
 type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string };
 type ReviewJob = {
   reviewId:string;
@@ -108,8 +108,8 @@ export default function ReviewPage() {
       <div className="audit-head"><div><p className="eyebrow">Live dependency review</p><h1>Building the case.</h1></div><strong>{findings.length.toString().padStart(2,"0")} / 06</strong></div>
       <div className="audit-repo"><i /> Reviewing <code>{repo}</code></div>
       {job?.status === "retrieving-packages" || packages.length ? <section className="package-panel">
-        <h2>Retrieved npm packages</h2>
-        <div className="package-grid">{packages.length ? packages.map(pkg => <PackageCard pkg={pkg} key={`${pkg.name}@${pkg.version}`} />) : <p>Fetching package tarballs...</p>}</div>
+        <h2>Retrieved packages</h2>
+        <div className="package-grid">{packages.length ? packages.map(pkg => <PackageCard pkg={pkg} key={`${pkg.name}@${pkg.version}`} />) : <p>Fetching package artifacts...</p>}</div>
       </section> : null}
       <ol>{agents.map(agent => {
         const finding = findings.find(item => item.role === agent.name);
@@ -133,7 +133,7 @@ export default function ReviewPage() {
         </section>
 
         <section className="package-panel" aria-labelledby="packages-title">
-          <h2 id="packages-title">Reviewed npm packages</h2>
+          <h2 id="packages-title">Reviewed packages</h2>
           <p className="package-summary">{result.packageSummary}</p>
           <div className="package-grid">{packages.map(pkg => <PackageCard pkg={pkg} key={`${pkg.name}@${pkg.version}`} />)}</div>
         </section>

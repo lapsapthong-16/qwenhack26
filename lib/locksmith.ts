@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { applyPackageFindings, collectNpmPackageEvidence, type PackageEvidence, type PackageFinding } from "./npmPackages";
+import { collectPythonPackageEvidence } from "./pythonPackages";
 
 export const ROLES = ["Baseline", "Manifest", "Static", "Behavior", "Skeptic", "Judge"] as const;
 export type Role = (typeof ROLES)[number];
@@ -95,9 +96,9 @@ export function dependencyStateId(source: string, files: Record<string, string>)
 }
 
 export const AGENT_PROMPTS: Record<Role, string> = {
-  Baseline: "You are Locksmith's Baseline Agent. Analyze retrieved dependency files, package-lock exact versions, and package inspection coverage. If no previousReview is supplied, say there is no prior approved baseline available. Identify package manager, direct production dependencies, inspected package count, and packages that could not be inspected. Do not inspect source behavior or make final policy.",
-  Manifest: "You are Locksmith's Manifest Agent. Review each retrieved package package.json plus repo manifests: lifecycle scripts, bin/main/module/exports, dependency counts, and package purpose mismatch. Do not claim publisher, release timing, vulnerabilities, or baseline approval unless supplied. Do not decide final policy.",
-  Static: "You are Locksmith's Static Agent. Inspect retrieved package file text for suspicious static patterns such as lifecycle scripts, eval/dynamic Function text, env/secret/home-directory access text, file reads/writes, outbound URL strings, child_process, shell execution, and persistence indicators. Cite package name and file path. Do not issue the final verdict.",
+  Baseline: "You are Locksmith's Baseline Agent. Analyze retrieved dependency files, package-lock exact versions, pinned Python requirements, and package inspection coverage. If no previousReview is supplied, say there is no prior approved baseline available. Identify package manager, direct production dependencies, inspected package count, and packages that could not be inspected. Do not inspect source behavior or make final policy.",
+  Manifest: "You are Locksmith's Manifest Agent. Review each retrieved npm package.json, PyPI metadata/build files, and repo manifests: lifecycle scripts, build/install hooks, bin/main/module/exports, dependency counts, and package purpose mismatch. Do not claim publisher, release timing, vulnerabilities, or baseline approval unless supplied. Do not decide final policy.",
+  Static: "You are Locksmith's Static Agent. Inspect retrieved package file text for suspicious static patterns such as lifecycle scripts, eval/dynamic Function text, env/secret/home-directory access text, file reads/writes, outbound URL strings, child_process/subprocess, shell execution, and persistence indicators. Cite package name and file path. Do not issue the final verdict.",
   Behavior: "You are Locksmith's Behavior Agent. Infer likely install/runtime behavior only from retrieved package files and dependency files. Clearly label every behavior claim as inferred, not sandbox-observed. Focus on lifecycle execution, spawned processes, network calls, filesystem access outside expected paths, credential discovery, persistence, and unexpected side effects. Do not decide policy.",
   Skeptic: "You are Locksmith's Skeptic Agent. Challenge Baseline, Manifest, Static, and Behavior claims as possible false positives. Reject any claim that is not supported by retrieved files or prior findings. Ask whether behavior is normal for this package type, whether evidence is direct or inferred, whether repo context changes severity, and whether the claim is strong enough for Allow, Review, or Block. Do not find new risks or make the final verdict.",
   Judge: "You are Locksmith's Judge Agent. Resolve the five prior agents into package verdicts and one repo-specific decision: Allow, Review, or Block. Block credential theft, install-time execution abuse, hidden network exfiltration, destructive file access, obfuscation paired with sensitive access, or risky changes replacing an approved state. Review incomplete but suspicious evidence. Allow only low-risk explained behavior. Suggest the smallest remediation.",
@@ -143,7 +144,12 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
   const evidence = await gatherEvidence(input);
   const policy = input.policy || "strict";
   const stateId = dependencyStateId(evidence.source, evidence.files);
-  let packages = await collectNpmPackageEvidence(evidence.files, hooks.onPackages);
+  let packages: PackageEvidence[] = [];
+  for (const collect of [collectNpmPackageEvidence, collectPythonPackageEvidence]) {
+    const next = await collect(evidence.files, partial => hooks.onPackages?.([...packages, ...partial]));
+    packages = [...packages, ...next];
+    hooks.onPackages?.(packages);
+  }
   const findings: Finding[] = [];
   for (const role of ROLES) {
     hooks.onRoleStart?.(role);
@@ -156,8 +162,8 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
   const packageCount = packages.length;
   const inspectedPackageCount = packages.filter(pkg => pkg.inspectedFiles.length).length;
   const packageSummary = packageCount
-    ? `${packageCount} production npm packages reviewed: ${packages.filter(pkg => pkg.status === "Allow").length} allow, ${packages.filter(pkg => pkg.status === "Review").length} review, ${packages.filter(pkg => pkg.status === "Block").length} block.`
-    : "No production npm dependencies found in package.json.";
+    ? `${packageCount} production npm/PyPI packages reviewed: ${packages.filter(pkg => pkg.status === "Allow").length} allow, ${packages.filter(pkg => pkg.status === "Review").length} review, ${packages.filter(pkg => pkg.status === "Block").length} block.`
+    : "No production npm or pinned PyPI dependencies found.";
   return {
     dependencyStateId: stateId,
     source: evidence.source,
