@@ -87,7 +87,11 @@ function pickScriptFiles(scripts: Record<string, string> | undefined) {
 
 function selectFiles(entries: TarEntry[]) {
   const byPath = new Map(entries.map(entry => [entry.path, entry]));
-  const manifestPath = entries.find(entry => entry.path.endsWith("/package.json") || entry.path === "package.json")?.path;
+  const manifestPath = byPath.has("package/package.json")
+    ? "package/package.json"
+    : byPath.has("package.json")
+      ? "package.json"
+      : entries.find(entry => entry.path.endsWith("/package.json"))?.path;
   const root = manifestPath?.replace(/package\.json$/, "") || "";
   const pkg = parseJson<Record<string, any>>("package.json", maybeText(manifestPath ? byPath.get(manifestPath)?.content : undefined));
   const selected = new Map<string, string>();
