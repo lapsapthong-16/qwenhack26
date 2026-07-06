@@ -47,7 +47,7 @@ Core surfaces:
 | Landing page | Explains the six-agent dependency review flow and links into scanning. |
 | `/review` page | Imports a public GitHub repo, chooses a branch, starts a Qwen review, shows package retrieval, agent progress, and final report. |
 | `/history` page | Reads local saved reviews and shows prior non-allow findings. |
-| CLI | `node bin/locksmith.mjs scan [project-directory]` reviews local dependency files with the same core engine. |
+| CLI | Local demo command only: `node bin/locksmith.mjs scan [project-directory]` reviews local dependency files with the same core engine. Locksmith is not published on npm yet. |
 
 ## User Flow
 
@@ -168,6 +168,13 @@ Scan a local project with the CLI:
 node bin/locksmith.mjs scan .
 ```
 
+Current CLI install status:
+
+- The CLI is a local demo script in this repository.
+- It is not published to npm yet.
+- It does not currently install a global `locksmith` command.
+- The intended future flow is `locksmith npm install ...` or `locksmith pip install ...`, but those install-wrapper commands are not implemented yet.
+
 Inspect a public GitHub repo through the API:
 
 ```bash
@@ -226,7 +233,7 @@ Recommended demo flow:
 6. Show the six-agent progress timeline.
 7. Show the final verdict, evidence, remediation, model, and dependency state ID.
 8. Open `/history` to show the saved local review.
-9. Run `node bin/locksmith.mjs scan .` to show the CLI using the same review engine.
+9. Run `node bin/locksmith.mjs scan .` from the local repo to show the CLI using the same review engine.
 
 ## Roadmap
 
@@ -243,7 +250,7 @@ Recommended demo flow:
 - Live review job polling.
 - Final verdict report.
 - Local review history.
-- Node CLI scan command.
+- Local Node CLI scan command.
 - Basic tests for PyPI package retrieval and encoded requirements parsing.
 
 ### Current Limitations
@@ -257,6 +264,8 @@ Recommended demo flow:
 - PyPI wheel parsing is minimal and artifact selection is not platform-aware.
 - Behavior analysis is inferred from retrieved files; there is no sandbox execution yet.
 - Large package evidence can make later Qwen roles slow or stall.
+- The CLI is not published on npm and does not expose a global `locksmith` binary yet.
+- `locksmith npm install ...` and `locksmith pip install ...` are intended product flows, not implemented commands.
 - There is no workspace approval layer, policy editor, repo trust file writer, or CI integration yet.
 - There is no authentication, private GitHub import, or team account model.
 
