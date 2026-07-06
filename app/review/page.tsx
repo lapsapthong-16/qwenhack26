@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import RepoSearch from "../components/RepoSearch";
 import Report, { agents, type Finding, type PackageEvidence, type ReviewResult, type RoleStatus } from "../components/Report";
-import { LIVE_PHASES, phaseState, roleState, type LiveRole } from "../../lib/agentProgress";
+import { LIVE_PHASES, phaseState, roleState } from "../../lib/agentProgress";
 import "./review.css";
 type ReviewJob = {
   reviewId:string;

@@ -236,7 +236,7 @@ export async function collectNpmPackageEvidence(files: Record<string, string>, o
     const version = lockVersion(lock, name);
     const prior = previous.get(name);
     if (!version) {
-        packages.push({ name, version: "unresolved", packageManager: "npm", dependencyType: "npm:dependencies", scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
+      packages.push({ name, version: "unresolved", packageManager: "npm", dependencyType: "npm:dependencies", scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
     } else {
       const artifactKey = lockArtifactKey(lock, name, version);
       const cachedPackage = cached.get(artifactKey) || cached.get(`npm:${name}@${version}:registry`);
