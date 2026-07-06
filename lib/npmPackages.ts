@@ -8,16 +8,33 @@ const MAX_SCAN_FILES = 40;
 const MAX_READ_FILES = 12;
 const MAX_FILE_BYTES = 20_000;
 
-export type PackageFile = { path: string; reason: string; content: string };
-export type PackageFinding = { name: string; version: string; verdict: Verdict; reason: string; evidence: string[] };
+export type PackageFile = { path: string; reason: string; content: string; contentTruncated?: boolean; displayedBytes?: number; originalBytes?: number };
+export type SuspiciousLine = {
+  filePath: string;
+  startLine: number;
+  endLine?: number;
+  severity: "low" | "medium" | "high" | "critical";
+  sourceAgent: "Manifest" | "Static" | "Behavior";
+  reviewedBy?: "Skeptic" | "Judge";
+  reason: string;
+  rule?: string;
+};
+export type PackageFinding = { name: string; version: string; verdict: Verdict; reason: string; evidence: string[]; suspiciousLines?: SuspiciousLine[] };
 export type PackageEvidence = {
   name: string;
   version: string;
+  packageManager: "npm" | "pypi";
   dependencyType: string;
+  scanStatus: "new" | "reused" | "changed" | "unscanned";
+  previousReviewId?: string;
+  evidenceId?: string;
+  evidenceSource: "global-cache" | "workspace-cache" | "fresh-scan" | "none";
+  artifactKey?: string;
   tarballUrl?: string;
   fileCount: number;
   files: string[];
   inspectedFiles: PackageFile[];
+  suspiciousLines: SuspiciousLine[];
   status: Verdict;
   reason: string;
   evidence?: string[];
@@ -26,6 +43,7 @@ export type PackageEvidence = {
 type TarEntry = { path: string; content: Buffer };
 
 export type PackageProgress = (packages: PackageEvidence[]) => void;
+export type PackageCollectionContext = { cached?: PackageEvidence[]; previous?: PackageEvidence[] };
 
 function parseJson<T>(name: string, content?: string): T {
   if (!content) throw new Error(`${name} is required`);
@@ -38,6 +56,11 @@ function parseJson<T>(name: string, content?: string): T {
 
 function lockVersion(lock: Record<string, any>, name: string) {
   return lock.packages?.[`node_modules/${name}`]?.version || lock.dependencies?.[name]?.version;
+}
+
+function lockArtifactKey(lock: Record<string, any>, name: string, version: string) {
+  const entry = lock.packages?.[`node_modules/${name}`] || lock.dependencies?.[name] || {};
+  return `npm:${name}@${version}:${entry.integrity || entry.resolved || "registry"}`;
 }
 
 function registryUrl(name: string) {
@@ -71,6 +94,18 @@ function parseTar(buffer: Buffer): TarEntry[] {
 function text(buffer: Buffer) {
   if (buffer.includes(0)) return "";
   return buffer.toString("utf8", 0, Math.min(buffer.length, MAX_FILE_BYTES));
+}
+
+function file(content: Buffer, path: string, reason: string): PackageFile {
+  const body = text(content);
+  return {
+    path,
+    reason,
+    content: body,
+    contentTruncated: content.length > MAX_FILE_BYTES || undefined,
+    displayedBytes: body.length,
+    originalBytes: content.length,
+  } as PackageFile;
 }
 
 function maybeText(buffer?: Buffer) {
@@ -114,10 +149,36 @@ function selectFiles(entries: TarEntry[]) {
     const content = text(entry.content);
     if (content && suspicious.test(content)) selected.set(entry.path, "suspicious static pattern");
   }
-  return [...selected.entries()].slice(0, MAX_READ_FILES).map(([path, reason]) => ({ path, reason, content: text(byPath.get(path)!.content) }));
+  return [...selected.entries()].slice(0, MAX_READ_FILES).map(([path, reason]) => file(byPath.get(path)!.content, path, reason));
 }
 
-async function inspectPackage(name: string, version: string): Promise<PackageEvidence> {
+const suspiciousRules = [
+  ["eval", /\beval\b/, "uses eval-style dynamic code execution", "high"],
+  ["Function", /Function\s*\(/, "creates code dynamically with Function", "high"],
+  ["child_process", /child_process/, "can spawn child processes", "high"],
+  ["process.env", /process\.env/, "reads environment variables", "medium"],
+  [".npmrc", /\.npmrc/, "references npm credentials", "critical"],
+  ["curl", /\bcurl\b/, "runs curl from package code", "high"],
+  ["wget", /\bwget\b/, "runs wget from package code", "high"],
+  ["url", /https?:\/\//, "contains outbound URL", "medium"],
+  ["fs.readFile", /fs\.readFile/, "reads local files", "medium"],
+  ["fs.writeFile", /fs\.writeFile/, "writes local files", "medium"],
+  ["os.homedir", /os\.homedir/, "accesses the user home directory", "high"],
+] as const;
+
+export function findNpmSuspiciousLines(files: PackageFile[]): SuspiciousLine[] {
+  return files.flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
+    return suspiciousRules
+      .filter(([, pattern]) => pattern.test(line))
+      .map(rule => ({ filePath: item.path, startLine: index + 1, severity: rule[3], sourceAgent: "Static" as const, reason: `Static Agent: ${rule[2]}.`, rule: rule[0] }));
+  }));
+}
+
+function reusePackage(pkg: PackageEvidence, scanStatus: PackageEvidence["scanStatus"], previousReviewId?: string): PackageEvidence {
+  return { ...pkg, scanStatus, evidenceSource: "global-cache", previousReviewId };
+}
+
+async function inspectPackage(name: string, version: string, artifactKey?: string): Promise<PackageEvidence> {
   const metadataResponse = await fetch(registryUrl(name), { signal: AbortSignal.timeout(10_000) });
   if (!metadataResponse.ok) throw new Error(`npm metadata failed (${metadataResponse.status})`);
   const metadata = await metadataResponse.json() as any;
@@ -128,30 +189,40 @@ async function inspectPackage(name: string, version: string): Promise<PackageEvi
   const entries = parseTar(await unzip(Buffer.from(await tarballResponse.arrayBuffer())));
   const files = entries.map(entry => entry.path).sort();
   const inspectedFiles = selectFiles(entries);
+  const lines = findNpmSuspiciousLines(inspectedFiles);
   return {
     name,
     version,
+    packageManager: "npm",
     dependencyType: "dependencies",
+    scanStatus: "new",
+    evidenceSource: "fresh-scan",
+    artifactKey: artifactKey || `npm:${name}@${version}:${tarballUrl}`,
     tarballUrl,
     fileCount: files.length,
     files,
     inspectedFiles,
-    status: "Allow",
-    reason: inspectedFiles.length ? "Package tarball retrieved and selected files inspected." : "Package tarball retrieved, but no readable files were selected.",
+    suspiciousLines: lines,
+    status: lines.some(line => line.severity === "critical" || line.severity === "high") ? "Review" : "Allow",
+    reason: lines.length ? `${lines.length} suspicious static line${lines.length === 1 ? "" : "s"} found.` : inspectedFiles.length ? "Package tarball retrieved and selected files inspected." : "Package tarball retrieved, but no readable files were selected.",
   };
 }
 
-export async function collectNpmPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress) {
+export async function collectNpmPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress, context: PackageCollectionContext = {}) {
   if (!files["package.json"]) return [];
   const manifest = parseJson<{ dependencies?: Record<string, string> }>("package.json", files["package.json"]);
   if (!files["package-lock.json"]) {
     return Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES).map(name => ({
       name,
       version: "unresolved",
+      packageManager: "npm" as const,
       dependencyType: "npm:dependencies",
+      scanStatus: "unscanned" as const,
+      evidenceSource: "none" as const,
       fileCount: 0,
       files: [],
       inspectedFiles: [],
+      suspiciousLines: [],
       status: "Review" as Verdict,
       reason: "package-lock.json is required to resolve and inspect the exact npm package version.",
     }));
@@ -159,15 +230,22 @@ export async function collectNpmPackageEvidence(files: Record<string, string>, o
   const lock = parseJson<Record<string, any>>("package-lock.json", files["package-lock.json"]);
   const deps = Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES);
   const packages: PackageEvidence[] = [];
+  const cached = new Map((context.cached || []).map(pkg => [pkg.artifactKey || `${pkg.packageManager}:${pkg.name}@${pkg.version}`, pkg]));
+  const previous = new Map((context.previous || []).map(pkg => [pkg.name, pkg]));
   for (const name of deps) {
     const version = lockVersion(lock, name);
+    const prior = previous.get(name);
     if (!version) {
-        packages.push({ name, version: "unresolved", dependencyType: "npm:dependencies", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
+        packages.push({ name, version: "unresolved", packageManager: "npm", dependencyType: "npm:dependencies", scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
     } else {
+      const artifactKey = lockArtifactKey(lock, name, version);
+      const cachedPackage = cached.get(artifactKey) || cached.get(`npm:${name}@${version}:registry`);
       try {
-        packages.push(await inspectPackage(name, version));
+        packages.push(cachedPackage
+          ? reusePackage(cachedPackage, prior && prior.version !== version ? "changed" : "reused", prior?.evidenceId || prior?.previousReviewId)
+          : { ...await inspectPackage(name, version, artifactKey), scanStatus: prior && prior.version !== version ? "changed" : "new" });
       } catch (error) {
-        packages.push({ name, version, dependencyType: "dependencies", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
+        packages.push({ name, version, packageManager: "npm", dependencyType: "dependencies", scanStatus: "unscanned", evidenceSource: "none", artifactKey: `npm:${name}@${version}`, fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
       }
     }
     onProgress?.([...packages]);
@@ -181,6 +259,6 @@ export function applyPackageFindings(packages: PackageEvidence[], findings?: Pac
   const byName = new Map(findings.map(finding => [`${finding.name}@${finding.version}`, finding]));
   return packages.map(pkg => {
     const finding = byName.get(`${pkg.name}@${pkg.version}`) || findings.find(item => item.name === pkg.name);
-    return finding ? { ...pkg, status: finding.verdict, reason: finding.reason, evidence: finding.evidence.slice(0, 6) } : pkg;
+    return finding ? { ...pkg, status: finding.verdict, reason: finding.reason, evidence: finding.evidence.slice(0, 6), suspiciousLines: finding.suspiciousLines?.length ? finding.suspiciousLines : pkg.suspiciousLines } : pkg;
   });
 }

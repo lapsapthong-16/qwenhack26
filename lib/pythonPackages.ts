@@ -1,6 +1,6 @@
 import { gunzip, inflateRaw } from "node:zlib";
 import { promisify } from "node:util";
-import type { PackageEvidence, PackageFile, PackageProgress } from "./npmPackages";
+import type { PackageCollectionContext, PackageEvidence, PackageFile, PackageProgress } from "./npmPackages";
 
 const unzip = promisify(gunzip);
 const inflate = promisify(inflateRaw);
@@ -19,6 +19,18 @@ function dependencyText(content = "") {
 function text(buffer: Buffer) {
   if (buffer.includes(0)) return "";
   return buffer.toString("utf8", 0, Math.min(buffer.length, MAX_FILE_BYTES));
+}
+
+function file(content: Buffer, path: string, reason: string): PackageFile {
+  const body = text(content);
+  return {
+    path,
+    reason,
+    content: body,
+    contentTruncated: content.length > MAX_FILE_BYTES || undefined,
+    displayedBytes: body.length,
+    originalBytes: content.length,
+  };
 }
 
 function octal(buffer: Buffer, start: number, length: number) {
@@ -89,7 +101,35 @@ function selectFiles(entries: Entry[]): PackageFile[] {
     const content = text(entry.content);
     if (content && suspicious.test(content)) selected.set(entry.path, "suspicious static pattern");
   }
-  return [...selected.entries()].slice(0, MAX_READ_FILES).map(([path, reason]) => ({ path, reason, content: text(entries.find(entry => entry.path === path)!.content) }));
+  return [...selected.entries()].slice(0, MAX_READ_FILES).map(([path, reason]) => file(entries.find(entry => entry.path === path)!.content, path, reason));
+}
+
+const suspiciousRules = [
+  ["eval", /\beval\s*\(/, "uses eval-style dynamic code execution", "high"],
+  ["exec", /\bexec\s*\(/, "executes dynamic Python code", "high"],
+  ["subprocess", /subprocess/, "can spawn subprocesses", "high"],
+  ["os.environ", /os\.environ/, "reads environment variables", "medium"],
+  ["os.system", /os\.system/, "runs shell commands", "high"],
+  ["socket", /socket\./, "opens raw network sockets", "medium"],
+  ["requests", /requests\./, "can make outbound HTTP requests", "medium"],
+  ["urllib", /urllib\./, "can make outbound HTTP requests", "medium"],
+  ["httpx", /httpx\./, "can make outbound HTTP requests", "medium"],
+  ["Path.home", /(?:pathlib\.)?Path\.home/, "accesses the user home directory", "high"],
+  [".ssh", /\.ssh/, "references SSH credentials", "critical"],
+  [".pypirc", /\.pypirc/, "references PyPI credentials", "critical"],
+  ["base64.b64decode", /base64\.b64decode/, "decodes base64 payloads", "medium"],
+] as const;
+
+export function findPythonSuspiciousLines(files: PackageFile[]) {
+  return files.flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
+    return suspiciousRules
+      .filter(([, pattern]) => pattern.test(line))
+      .map(rule => ({ filePath: item.path, startLine: index + 1, severity: rule[3], sourceAgent: "Static" as const, reason: `Static Agent: ${rule[2]}.`, rule: rule[0] }));
+  }));
+}
+
+function reusePackage(pkg: PackageEvidence, scanStatus: PackageEvidence["scanStatus"], previousReviewId?: string): PackageEvidence {
+  return { ...pkg, scanStatus, evidenceSource: "global-cache", previousReviewId };
 }
 
 async function inspectPackage(name: string, version: string): Promise<PackageEvidence> {
@@ -104,30 +144,41 @@ async function inspectPackage(name: string, version: string): Promise<PackageEvi
   const entries = artifact.url.endsWith(".whl") ? await parseZip(body) : parseTar(await unzip(body));
   const files = entries.map(entry => entry.path).sort();
   const inspectedFiles = selectFiles(entries);
+  const lines = findPythonSuspiciousLines(inspectedFiles);
   return {
     name,
     version,
+    packageManager: "pypi",
     dependencyType: "pypi:requirements",
+    scanStatus: "new",
+    evidenceSource: "fresh-scan",
+    artifactKey: `pypi:${name}@${version}`,
     tarballUrl: artifact.url,
     fileCount: files.length,
     files,
     inspectedFiles,
-    status: "Allow",
-    reason: inspectedFiles.length ? "PyPI artifact retrieved and selected files inspected." : "PyPI artifact retrieved, but no readable files were selected.",
+    suspiciousLines: lines,
+    status: lines.some(line => line.severity === "critical" || line.severity === "high") ? "Review" : "Allow",
+    reason: lines.length ? `${lines.length} suspicious static line${lines.length === 1 ? "" : "s"} found.` : inspectedFiles.length ? "PyPI artifact retrieved and selected files inspected." : "PyPI artifact retrieved, but no readable files were selected.",
   };
 }
 
-export async function collectPythonPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress) {
+export async function collectPythonPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress, context: PackageCollectionContext = {}) {
   if (!files["requirements.txt"] && !files["pyproject.toml"]) return [];
   const deps = requirements(files);
   const packages: PackageEvidence[] = [];
+  const cached = new Map((context.cached || []).map(pkg => [pkg.artifactKey || `${pkg.packageManager}:${pkg.name}@${pkg.version}`, pkg]));
+  const previous = new Map((context.previous || []).map(pkg => [pkg.name.toLowerCase(), pkg]));
   for (const dep of deps) {
+    const prior = previous.get(dep.name.toLowerCase());
     try {
       packages.push(dep.version
-        ? await inspectPackage(dep.name, dep.version)
-        : { name: dep.name, version: "unresolved", dependencyType: "pypi:requirements", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: "No exact pinned Python dependency version found." });
+        ? cached.get(`pypi:${dep.name}@${dep.version}`)
+          ? reusePackage(cached.get(`pypi:${dep.name}@${dep.version}`)!, prior && prior.version !== dep.version ? "changed" : "reused", prior?.evidenceId || prior?.previousReviewId)
+          : { ...await inspectPackage(dep.name, dep.version), scanStatus: prior && prior.version !== dep.version ? "changed" : "new" }
+        : { name: dep.name, version: "unresolved", packageManager: "pypi", dependencyType: "pypi:requirements", scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact pinned Python dependency version found." });
     } catch (error) {
-      packages.push({ name: dep.name, version: dep.version || "unresolved", dependencyType: "pypi:requirements", fileCount: 0, files: [], inspectedFiles: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
+      packages.push({ name: dep.name, version: dep.version || "unresolved", packageManager: "pypi", dependencyType: "pypi:requirements", scanStatus: "unscanned", evidenceSource: "none", artifactKey: `pypi:${dep.name}@${dep.version || "unresolved"}`, fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
     }
     onProgress?.([...packages]);
   }

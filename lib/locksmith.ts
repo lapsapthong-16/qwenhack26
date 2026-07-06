@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { applyPackageFindings, collectNpmPackageEvidence, type PackageEvidence, type PackageFinding } from "./npmPackages";
+import { readPackageEvidence, savePackageEvidence } from "./packageEvidence";
 import { collectPythonPackageEvidence } from "./pythonPackages";
+import { readHistory } from "./reviewHistory";
 
 export const ROLES = ["Baseline", "Manifest", "Static", "Behavior", "Skeptic", "Judge"] as const;
 export type Role = (typeof ROLES)[number];
@@ -39,6 +41,7 @@ export type ReviewResult = {
 export type ReviewHooks = {
   onPackages?: (packages: PackageEvidence[]) => void;
   onRoleStart?: (role: Role) => void;
+  onRoleError?: (role: Role, error: string) => void;
   onFinding?: (finding: Finding) => void;
 };
 
@@ -112,12 +115,19 @@ function validFinding(value: unknown, role: Role): Finding {
     if (!item || typeof item !== "object") return [];
     const pkg = item as Record<string, unknown>;
     if (typeof pkg.name !== "string" || typeof pkg.version !== "string" || !(["Allow", "Review", "Block"] as unknown[]).includes(pkg.verdict) || typeof pkg.reason !== "string") return [];
-    return [{ name: pkg.name, version: pkg.version, verdict: pkg.verdict as Verdict, reason: pkg.reason.slice(0, 600), evidence: Array.isArray(pkg.evidence) ? pkg.evidence.filter(x => typeof x === "string").slice(0, 6) as string[] : [] }];
+    return [{
+      name: pkg.name,
+      version: pkg.version,
+      verdict: pkg.verdict as Verdict,
+      reason: pkg.reason.slice(0, 600),
+      evidence: Array.isArray(pkg.evidence) ? pkg.evidence.filter(x => typeof x === "string").slice(0, 6) as string[] : [],
+      suspiciousLines: Array.isArray(pkg.suspiciousLines) ? pkg.suspiciousLines as PackageFinding["suspiciousLines"] : undefined,
+    }];
   }) : undefined;
   return { role, verdict: v.verdict as Verdict, summary: v.summary.slice(0, 1000), evidence: v.evidence.filter(x => typeof x === "string").slice(0, 8) as string[], confidence: Math.max(0, Math.min(1, typeof v.confidence === "number" ? v.confidence : 0.5)), packages };
 }
 
-async function infer(role: Role, files: Record<string, string>, packages: PackageEvidence[], previous: Finding[], policy: string, stateId: string): Promise<Finding> {
+async function infer(role: Role, files: Record<string, string>, packages: PackageEvidence[], previous: Finding[], policy: string, stateId: string, previousReview: unknown = null): Promise<Finding> {
   const key = process.env.QWEN_API_KEY;
   if (!key) throw new Error("QWEN_API_KEY is required for real agent analysis");
   const model = process.env.QWEN_MODEL;
@@ -128,8 +138,8 @@ async function infer(role: Role, files: Record<string, string>, packages: Packag
   const response = await fetch(baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`, {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({ model, temperature: 0.1, response_format: { type: "json_object" }, messages: [
-      { role: "system", content: `${AGENT_PROMPTS[role]} Return only JSON: {\"verdict\":\"Allow|Review|Block\",\"summary\":\"...\",\"evidence\":[\"...\"],\"confidence\":0.0,\"packages\":[{\"name\":\"...\",\"version\":\"...\",\"verdict\":\"Allow|Review|Block\",\"reason\":\"...\",\"evidence\":[\"package/file.js: snippet\"]}]}. Never invent evidence. Cite package name and file path for package claims. Never claim a previous baseline, approval, vulnerability, publish date, or sandbox observation unless it appears in the supplied JSON.` },
-      { role: "user", content: JSON.stringify({ policy, dependencyStateId: stateId, previousReview: null, retrievedFileNames: Object.keys(dependencyFiles).sort(), repoDependencyFiles: dependencyFiles, packages: packageEvidence, previousFindings: previous }) },
+      { role: "system", content: `${AGENT_PROMPTS[role]} Keep summary under 160 characters and evidence bullets short. Return only JSON: {\"verdict\":\"Allow|Review|Block\",\"summary\":\"...\",\"evidence\":[\"...\"],\"confidence\":0.0,\"packages\":[{\"name\":\"...\",\"version\":\"...\",\"verdict\":\"Allow|Review|Block\",\"reason\":\"...\",\"evidence\":[\"package/file.js line 12\"],\"suspiciousLines\":[]}]}. Never invent evidence. Cite package name and file path for package claims. Never claim a previous baseline, approval, vulnerability, publish date, or sandbox observation unless it appears in the supplied JSON.` },
+      { role: "user", content: JSON.stringify({ policy, dependencyStateId: stateId, previousReview, retrievedFileNames: Object.keys(dependencyFiles).sort(), repoDependencyFiles: dependencyFiles, packages: packageEvidence, previousFindings: previous }) },
     ] }),
   });
   if (!response.ok) throw new Error(`Qwen ${role} request failed (${response.status}): ${(await response.text()).slice(0, 500)}`);
@@ -140,25 +150,74 @@ async function infer(role: Role, files: Record<string, string>, packages: Packag
   catch (error) { if (error instanceof SyntaxError) throw new Error(`Qwen ${role} returned malformed JSON`); throw error; }
 }
 
+function baselineFinding(packages: PackageEvidence[], previousReview: { reviewId?: string } | null): Finding {
+  const counts = {
+    reused: packages.filter(pkg => pkg.scanStatus === "reused").length,
+    new: packages.filter(pkg => pkg.scanStatus === "new").length,
+    changed: packages.filter(pkg => pkg.scanStatus === "changed").length,
+    unscanned: packages.filter(pkg => pkg.scanStatus === "unscanned").length,
+  };
+  const evidence = packages.slice(0, 6).map(pkg => `${pkg.name}@${pkg.version}: ${pkg.scanStatus} / ${pkg.evidenceSource}`);
+  return {
+    role: "Baseline",
+    verdict: counts.changed || counts.new || counts.unscanned || !previousReview ? "Review" : "Allow",
+    summary: previousReview
+      ? `${packages.length} packages: ${counts.reused} reused, ${counts.new} new, ${counts.changed} changed, ${counts.unscanned} unscanned.`
+      : `No previous scan found. ${packages.length} packages need workspace review.`,
+    evidence,
+    confidence: 1,
+  };
+}
+
 export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks = {}): Promise<ReviewResult> {
   const evidence = await gatherEvidence(input);
   const policy = input.policy || "strict";
   const stateId = dependencyStateId(evidence.source, evidence.files);
   let packages: PackageEvidence[] = [];
+  const [packageEvidence, history] = await Promise.all([readPackageEvidence(), readHistory()]);
+  const previousReview = history.reviews.find(review => review.source === evidence.source || review.repoUrl === input.repoUrl);
+  const previousReviewSummary = previousReview ? {
+    reviewId: previousReview.reviewId,
+    dependencyStateId: previousReview.dependencyStateId,
+    verdict: previousReview.verdict,
+    packages: previousReview.packages.map(pkg => ({ name: pkg.name, version: pkg.version, status: pkg.status, artifactKey: pkg.artifactKey })),
+  } : null;
+  const collectionContext = { cached: packageEvidence.packages, previous: previousReview?.packages || [] };
+  hooks.onRoleStart?.("Baseline");
   for (const collect of [collectNpmPackageEvidence, collectPythonPackageEvidence]) {
-    const next = await collect(evidence.files, partial => hooks.onPackages?.([...packages, ...partial]));
+    const next = await collect(evidence.files, partial => hooks.onPackages?.([...packages, ...partial]), collectionContext);
     packages = [...packages, ...next];
     hooks.onPackages?.(packages);
   }
+  await savePackageEvidence(packages);
   const findings: Finding[] = [];
-  for (const role of ROLES) {
+  const runRole = async (role: Role, prior = findings) => {
     hooks.onRoleStart?.(role);
-    const finding = await infer(role, evidence.files, packages, findings, policy, stateId);
+    const finding = await infer(role, evidence.files, packages, prior, policy, stateId, previousReviewSummary);
     findings.push(finding);
     hooks.onFinding?.(finding);
+    return finding;
+  };
+  const baseline = baselineFinding(packages, previousReviewSummary);
+  findings.push(baseline);
+  hooks.onFinding?.(baseline);
+  const baselineOnly = [...findings];
+  const parallel = await Promise.allSettled((["Manifest", "Static", "Behavior"] as Role[]).map(role => runRole(role, baselineOnly)));
+  for (const [index, result] of parallel.entries()) {
+    if (result.status === "fulfilled") continue;
+    const role = (["Manifest", "Static", "Behavior"] as Role[])[index];
+    const message = result.reason instanceof Error ? result.reason.message : `${role} failed`;
+    hooks.onRoleError?.(role, message);
+    findings.push({ role, verdict: "Review", summary: `${role} failed: ${message.slice(0, 120)}`, evidence: [message.slice(0, 180)], confidence: 0 });
   }
+  await runRole("Skeptic");
+  await runRole("Judge");
   const judge = findings.at(-1)!;
   packages = applyPackageFindings(packages, judge.packages);
+  const requiredFailure = findings.some(finding => (["Manifest", "Static", "Behavior"] as Role[]).includes(finding.role) && finding.confidence === 0);
+  const finalVerdict: Verdict = requiredFailure && judge.verdict === "Allow"
+    ? packages.some(pkg => pkg.status === "Block") ? "Block" : "Review"
+    : judge.verdict;
   const packageCount = packages.length;
   const inspectedPackageCount = packages.filter(pkg => pkg.inspectedFiles.length).length;
   const packageSummary = packageCount
@@ -178,7 +237,7 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
     inspectedPackageCount,
     packageSummary,
     findings,
-    verdict: judge.verdict,
-    remediation: judge.summary,
+    verdict: finalVerdict,
+    remediation: requiredFailure && judge.verdict === "Allow" ? "Review required because one or more required agents failed." : judge.summary,
   };
 }

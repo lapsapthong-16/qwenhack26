@@ -18,13 +18,10 @@ export async function readHistory(): Promise<HistoryFile> {
 export async function saveReview(review: ReviewResult) {
   const stored: ReviewResult = {
     ...review,
-    packages: review.packages
-      .filter(pkg => pkg.status !== "Allow")
-      .map(pkg => ({
-        ...pkg,
-        files: [],
-        inspectedFiles: pkg.inspectedFiles.map(file => ({ path: file.path, reason: file.reason, content: file.content.slice(0, 240) })),
-      })),
+    packages: review.packages.map(pkg => ({
+      ...pkg,
+      inspectedFiles: pkg.inspectedFiles.map(file => ({ ...file, content: file.content.slice(0, 20_000) })),
+    })),
   };
   const history = await readHistory();
   const reviews = [stored, ...history.reviews.filter(item => item.reviewId !== review.reviewId)].slice(0, 100);
