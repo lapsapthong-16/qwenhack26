@@ -9,3 +9,41 @@
 .phase-list{display:grid;gap:18px;margin-top:34px}.agent-phase{border-top:1px solid var(--ink);padding-top:14px}.agent-phase h2{font-size:20px;margin:0 0 12px}.agent-phase>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.live-agent-card{border:1px solid var(--line);background:white;min-height:112px;padding:14px;position:relative;overflow:hidden}.live-agent-card strong{display:block}.live-agent-card p{margin:10px 0;color:var(--muted);font:13px/1.35 var(--mono)}.live-agent-card em{font:11px/1 var(--mono);text-transform:uppercase}.phase-running h2{color:var(--green)}.live-agent-card.agent-running{border-color:var(--green)}.live-agent-card.agent-running strong::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:8px;animation:pulse 1s ease infinite}.live-agent-card.agent-done em{color:var(--green)}.live-agent-card.agent-failed{border-color:var(--red);background:#fff8f8}.live-agent-card.agent-failed em{color:var(--red)}@media(prefers-reduced-motion:reduce){.agent-running,.agent-running::after,.agent-running strong::before,.phase-running{animation:none!important}}
 
 .remediation{padding:32px 0 24px}.remediation>span{font:14px/1 var(--mono);text-transform:uppercase;color:#303430}.remediation p{font:18px/1.4 var(--mono);margin:16px 0 0;overflow-wrap:anywhere}
+
+/* Redesign pass: keep the existing report component, make evidence the dominant surface. */
+.review-page{--allow:#2f8353;--review:#a06f16;--block:#c83f45;--allow-bg:#eef8f1;--review-bg:#fff7e7;--block-bg:#fff0f1;--case:#fbfaf6}
+.review-error{width:min(900px,90vw);margin:18px 0 0;padding:14px 16px;border-left:4px solid var(--block);background:var(--block-bg);color:var(--block);text-align:left;font:14px/1.4 var(--mono)}
+.review-grid{grid-template-columns:minmax(220px,260px) minmax(520px,1fr) minmax(260px,300px);gap:16px}
+.review-topbar dd{font-variant-numeric:tabular-nums}
+.package-list h2,.file-viewer h2,.agent-panel h2{font-size:19px}
+.package-row{border:0;border-left:4px solid var(--line);background:var(--case);transition:background .2s ease,transform .2s ease}
+.package-row:hover{transform:translateY(-1px);background:#fff}
+.package-row.selected{background:#fff}
+.status-allow{border-color:var(--allow);background:var(--allow-bg)}
+.status-allow b,.verdict-allow{color:var(--allow)}
+.status-review{border-color:var(--review);background:var(--review-bg)}
+.status-review b,.verdict-review{color:var(--review)}
+.status-block{border-color:var(--block);background:var(--block-bg)}
+.status-block b,.verdict-block{color:var(--block)}
+.file-viewer{border-color:var(--ink);box-shadow:0 18px 45px rgba(28,35,29,.08);padding:18px}
+.file-viewer h2{font-size:clamp(24px,2.4vw,36px);letter-spacing:-.02em}
+.file-viewer p{line-height:1.45;max-width:70ch}
+.file-viewer header>b{align-self:flex-start;border:1px solid currentColor;padding:8px 10px}
+.file-layout{grid-template-columns:minmax(170px,220px) minmax(0,1fr);gap:16px}
+.code-pane pre{max-height:620px;background:#111712;padding:14px;line-height:1.55}
+.code-line.suspicious mark{background:rgba(200,63,69,.3)}
+.code-line.suspicious span{color:#f4a0a4}
+.line-reasons b{color:var(--block)}
+.agent-panel{background:var(--case);border-left:4px solid var(--ink);padding:16px}
+.agent-panel>p{margin:-5px 0 14px;color:var(--muted);font:12px/1.35 var(--mono)}
+.agent-row{grid-template-columns:28px 1fr auto;border:0;border-top:1px solid var(--line);background:transparent;padding:12px 0;margin:0}
+.agent-row>span{font-size:13px;text-align:left}
+.agent-row p{line-height:1.4}
+.agent-running{border-color:var(--allow)}
+.agent-running::after{background:linear-gradient(90deg,transparent,rgba(47,131,83,.12),transparent)}
+.agent-running>span::before{background:var(--allow)}
+.agent-failed{border-color:var(--block)}
+.agent-failed b{color:var(--block)}
+.agent-row small{color:var(--allow)}
+.history-link{display:inline-block;margin-top:16px;color:var(--ink);font:13px/1 var(--mono)}
+@media(max-width:1150px){.review-grid{grid-template-columns:1fr}.agent-panel{border-left:0;border-top:4px solid var(--ink);padding-left:16px}.file-layout{grid-template-columns:1fr}}

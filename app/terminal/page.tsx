@@ -3,8 +3,8 @@ import Link from "next/link";
 import "./terminal.css";
 
 export const metadata: Metadata = {
-  title: "Terminal demo — Locksmith",
-  description: "A hardcoded preview of Locksmith's dependency review CLI.",
+  title: "Terminal CLI — Locksmith",
+  description: "Current local demo CLI flow and future install wrapper direction for Locksmith.",
 };
 
 const agents = [
@@ -26,10 +26,10 @@ export default function TerminalPage() {
         </div>
         <div className="terminal-deck">
           <p>
-            The same dependency state, evidence, and workspace policy—available where
-            dependency changes actually happen.
+            Today the CLI runs as a local demo with Node. The intended product flow
+            is a real locksmith binary that wraps installs before they touch a lockfile.
           </p>
-          <span className="demo-label">Hardcoded product preview</span>
+          <span className="demo-label">Local demo, not published on npm</span>
         </div>
       </section>
 
@@ -42,7 +42,8 @@ export default function TerminalPage() {
           </div>
 
           <div className="terminal-screen">
-            <p className="command"><span>~/storefront</span> <b>$</b> locksmith scan .</p>
+            <p className="command"><span>~/locksmith</span> <b>$</b> node bin/locksmith.mjs scan ../storefront</p>
+            <p className="command muted-command"><span>future</span> <b>$</b> locksmith npm install colors@3.0.0</p>
             <div className="scan-meta">
               <p><span>LOCKSMITH</span> dependency review / strict policy</p>
               <dl>
@@ -81,12 +82,12 @@ export default function TerminalPage() {
         <aside className="terminal-notes">
           <p className="eyebrow">What the terminal proves</p>
           <ol>
-            <li><span>01</span><p><strong>One state model</strong>Matches the review shown in the web app.</p></li>
-            <li><span>02</span><p><strong>Visible collaboration</strong>Six specialists inspect, challenge, and resolve.</p></li>
-            <li><span>03</span><p><strong>Decisive output</strong>Block the change and provide the smallest safe fix.</p></li>
+            <li><span>01</span><p><strong>Current command</strong>Runs a local scan through <code>node bin/locksmith.mjs scan .</code>.</p></li>
+            <li><span>02</span><p><strong>Future wrapper</strong><code>locksmith npm install</code> and <code>locksmith pip install</code> are planned, not shipped.</p></li>
+            <li><span>03</span><p><strong>Same review engine</strong>Six agents inspect, challenge, and resolve the dependency state.</p></li>
           </ol>
           <Link className="button secondary" href="/review">Open web review <span aria-hidden="true">→</span></Link>
-          <p className="prototype-note">Interface prototype only. No command is executed.</p>
+          <p className="prototype-note">This page is a static explanation. Use the local Node command in a real terminal.</p>
         </aside>
       </section>
     </main>

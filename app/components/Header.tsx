@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export default function Header() {
-  const isHome = usePathname() === "/";
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+  const nav = [
+    ["/review", "Review"],
+    ["/history", "History"],
+    ["/terminal", "Terminal"],
+  ] as const;
 
   return (
     <header className="site-header">
@@ -12,13 +18,11 @@ export default function Header() {
         <span aria-hidden="true" className="mark" />
         Locksmith
       </Link>
-      {!isHome ? (
-        <nav aria-label="Primary">
-          <Link href="/history">History</Link>
-        </nav>
-      ) : null}
+      {!isHome ? <nav aria-label="Primary">
+        {nav.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}
+      </nav> : null}
       <div className="header-actions">
-        <Link className="header-cta" href="/review">Scan repository</Link>
+        <Link className={`header-cta ${pathname === "/review" ? "active" : ""}`} href="/review">Scan repository</Link>
       </div>
     </header>
   );

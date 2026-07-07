@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Report, { type Finding, type PackageEvidence, type ReviewResult } from "../components/Report";
 import "../review/review.css";
 import "./history.css";
@@ -41,19 +42,25 @@ export default function HistoryPage() {
     <section className="history-layout history-list-only">
       <div className="history-list">
         <p className="eyebrow">Local-only history</p>
-        <h1>Saved reviews.</h1>
-        {error ? <p role="alert" className="history-error">{error}</p> : null}
-        {!error && !reviews.length ? <p className="history-empty">No completed reviews saved on this machine yet.</p> : null}
-        <ol>{reviews.map((review, index) => <li key={review.reviewId}>
+        <div className="history-head">
+          <h1>Review ledger.</h1>
+          <p>Completed scans saved by this demo app. These are local records, not workspace approvals.</p>
+        </div>
+        {error ? <div role="alert" className="history-state history-error"><b>History could not load.</b><p>{error}</p><Link className="button secondary" href="/review">Start a new review</Link></div> : null}
+        {!error && !reviews.length ? <div className="history-state history-empty"><b>No completed reviews saved here yet.</b><p>Run a web review first. Approved or blocked results will appear here for this browser session.</p><Link className="button secondary" href="/review">Start first review</Link></div> : null}
+        <ol>{reviews.map((review, index) => {
+          const verdictClass = `verdict-${review.verdict.toLowerCase()}`;
+          return <li key={review.reviewId}>
           <button type="button" onClick={() => setSelected(review)}>
-            <b>{review.verdict}</b>
-            <em>Run #{reviews.length - index}</em>
-            <span>{review.source}</span>
+            <span className="review-run">Run #{reviews.length - index}</span>
+            <b className={verdictClass}>{review.verdict}</b>
+            <span className="review-source">{review.source}</span>
             <code>{review.dependencyStateId}</code>
             <small>{review.packageSummary}</small>
             <time dateTime={review.createdAt}>{review.createdAt ? new Date(review.createdAt).toLocaleString() : "Saved review"}</time>
           </button>
-        </li>)}</ol>
+        </li>;
+        })}</ol>
       </div>
     </section>
   </main>;

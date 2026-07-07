@@ -102,7 +102,7 @@ export default function ReviewPage() {
       <h1>Review a dependency state.</h1>
       <p>Locksmith retrieves real dependency files, sends them through six specialist Qwen agents, and saves the result locally.</p>
       <RepoSearch id="review-repo" initialRepo={repo} variant="review" onScan={runReview} />
-      {error ? <p role="alert" style={{color:"var(--red)",fontFamily:"var(--mono)",fontSize:14}}>{error}</p> : null}
+      {error ? <p className="review-error" role="alert">{error}</p> : null}
     </section> : null}
 
     {phase === "audit" ? <section className="audit-screen" aria-live="polite">

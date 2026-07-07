@@ -66,7 +66,7 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
 
     <section className="review-grid">
       <aside className="package-list" aria-label="Packages">
-        <h2>Packages</h2>
+        <h2>Dependency queue</h2>
         {packages.map(pkg => {
           const active = keyFor(pkg) === keyFor(selectedPackage);
           return <button className={`package-row status-${pkg.status.toLowerCase()} ${active ? "selected" : ""}`} key={keyFor(pkg)} onClick={() => { setSelectedPackageKey(keyFor(pkg)); setSelectedFilePath(pkg.inspectedFiles[0]?.path || ""); }}>
@@ -106,7 +106,8 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
       </section>
 
       <aside className="agent-panel" aria-label="Agents">
-        <h2>Agents</h2>
+        <h2>Agent panel</h2>
+        <p>Six reviewers, one resolved verdict.</p>
         {agents.map(agent => {
           const finding = findings.find(item => item.role === agent.name);
           const state = job?.roleStatus?.[agent.name] || (finding ? "done" : job?.currentRoles?.includes(agent.name) || job?.currentRole === agent.name ? "running" : completed.has(agent.name) ? "done" : "queued");
@@ -115,7 +116,7 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
           </article>;
         })}
         <div className="remediation"><span>Remediation</span><p>{result.remediation}</p></div>
-        <Link href="/history">View history</Link>
+        <Link className="history-link" href="/history">View history</Link>
       </aside>
     </section>
   </section>;
