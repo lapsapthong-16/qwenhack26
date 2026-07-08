@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ScrollReveal from "./components/ScrollReveal";
 import "./landing.css";
 
 const workflow = [
@@ -29,6 +30,7 @@ const ShieldIcon = () => (
 export default function Home() {
   return (
     <main className="home-page">
+      <ScrollReveal />
       <section className="home-hero" aria-labelledby="hero-title">
         <Image
           className="hero-art"
