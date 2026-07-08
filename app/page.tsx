@@ -177,7 +177,6 @@ export default function Home() {
           height={887}
           alt="Evidence dossier for a reviewed lockfile"
         />
-        <footer className="landing-footer"><span>Locksmith</span><span>Qwen Agent Society for dependency safety</span></footer>
       </section>
     </main>
   );

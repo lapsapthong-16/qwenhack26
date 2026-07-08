@@ -226,5 +226,4 @@ body:has(.home-page){background:var(--paper);color:var(--ink);font-family:var(--
   .state-row{width:160%;margin-left:-30%}
   .workflow-cards{grid-template-columns:1fr}
   .quote-stack article{grid-template-columns:56px 1fr;padding:20px}.quote-stack span{width:46px;height:46px}.quote-stack q{font-size:27px}
-  .landing-footer{gap:12px;align-items:flex-start;flex-direction:column;padding:22px 5vw}
 }

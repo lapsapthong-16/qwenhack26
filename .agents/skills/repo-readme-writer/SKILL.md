@@ -1,6 +1,6 @@
 ---
 name: repo-readme-writer
-description: Generate or improve a repository README by inspecting the current working repo. Use when asked to create, rewrite, update, or polish README.md files, especially hackathon/product repos, Web3 apps, full-stack apps, or projects that need story scenario, problem statement, solution, product concept, user flow diagram, system architecture diagram, tech stack, setup, and smart contract address sections.
+description: Generate or improve a repo-specific README by inspecting the codebase. Use for create/update/polish README requests, especially hackathon, product, Web3, full-stack, setup, tech stack, smart contract, user flow, or system architecture README work.
 ---
 
 # Repo README Writer
@@ -28,17 +28,19 @@ Inspect the current repository before writing. Do not produce a generic README f
    - Frontend/backend/on-chain/data flow
    - Run commands and required environment
 4. Decide diagram flow:
-   - In **New mode**, create fresh User Flow and System Architecture Flow diagrams.
+   - In **New mode**, create fresh User Flow and System Architecture Mermaid diagrams.
    - In **Update mode**, inspect the existing README for Mermaid diagrams, ASCII diagrams, image links, or external diagram links before creating anything new.
-   - Prefer Mermaid diagrams directly in the README because GitHub renders them without generated image files or paid services.
-   - Use ASCII only when Mermaid would be too complex or the target Markdown renderer does not support Mermaid.
+   - Prefer Mermaid directly in the README because GitHub renders it without generated image files or paid services.
+   - For System Architecture Flow, follow the System Architecture Mermaid workflow below.
 5. Ask only when important facts cannot be inferred safely:
    - Target user or story scenario is unclear
    - Smart contract network/address is missing or ambiguous
    - Setup commands cannot be inferred
    - Product name conflicts across files
+   - Architecture stack has uncertain or possibly unused services, databases, frameworks, models, chains, APIs, wallets, or tools
+   - Architecture diagram generation or replacement is needed; always confirm detected architecture components first
 6. Write or update `README.md`.
-7. Re-read the final README for broken structure, false claims, missing required sections, and commands that do not match the repo.
+7. Re-read the final README for broken structure, false claims, missing required sections, commands that do not match the repo, and the System Architecture completion checks below.
 
 ## Clarifying Q&A
 
@@ -53,8 +55,9 @@ Good questions:
 - Are these contract addresses final or placeholders?
 - Is there a live demo, video, or screenshot link to include?
 - Are there required environment variables not shown in `.env.example`?
+- I found these architecture parts: `...`. Which are actually used in the demo, and which should be left out?
 
-If the user does not answer, proceed with `TBD` for unknown values and state what was inferred from the repo.
+If the user does not answer, proceed with `TBD` for ordinary unknown values and state what was inferred from the repo. For architecture diagram confirmation, pause before final README completion unless an accurate existing System Architecture Mermaid diagram is being preserved.
 
 ## Required README Sections
 
@@ -156,21 +159,30 @@ Confirm / Share / Track
 
 ### System Architecture Flow
 
-Always include a system architecture diagram based on the actual repo. Prefer Mermaid directly in the README. Use ASCII only as a fallback.
+Always include a System Architecture Mermaid diagram based on the actual repo. Do not generate PNG/JPG architecture images.
 
-Mermaid example:
+In update mode, first check whether the README already has a System Architecture Mermaid diagram. Preserve it when its major nodes match the detected frontend, backend, database, AI model, chain, wallet, storage, and external services. If the README has a System Architecture image, ASCII diagram, or external diagram link, use it only as draft input, then replace it with Mermaid after the user confirms the architecture.
 
-```mermaid
-flowchart LR
-  A[Browser UI] --> B[Frontend App]
-  B --> C[API / Server Actions]
-  C --> D[Database / External APIs]
-  B --> E[Wallet Provider]
-  E --> F[Smart Contracts]
-  F --> G[Blockchain Network]
-```
+Use Canva-style architecture logic in Mermaid: clear nouns, simple actions, generous spacing, and few arrows. The diagram should read like a human-made hackathon slide, not like an exhaustive infrastructure map.
 
-ASCII fallback example:
+Reference images live in `references/architecture-diagrams/`. Before drafting, inspect all reference images for layout density, arrow style, and label simplicity. Reuse only style traits, not project content.
+
+When no accurate existing System Architecture Mermaid diagram is being preserved:
+1. Inspect the codebase for actual frontend, backend, database, AI model, wallet, chain, API, storage, worker, and deployment components.
+2. Ask the user to confirm which detected components are used and which are unused or should be hidden.
+3. Draft a rough ASCII layout with only the nodes and arrows that will appear in Mermaid.
+4. Write the Mermaid diagram only after the user confirms the draft.
+
+Mermaid architecture rules:
+- Include `User` and the project name as visible nodes.
+- Use 5-9 main nodes unless the user asks for more detail.
+- Use short noun labels: `User`, `Web App`, `API`, `Database`, `Qwen`, `Wallet`, `Contract`.
+- Use short action labels: `scan`, `send`, `store`, `review`, `approve`, `call`, `read`, `write`.
+- Group related services in one box when it improves readability, such as `Services`, `AI Agents`, or `External APIs`.
+- Keep arrows directional and sparse. Remove arrows that do not explain a user-facing or data flow action.
+- Use `flowchart LR` for architecture unless the user asks for vertical layout.
+
+ASCII draft example:
 
 ```text
 Browser UI
@@ -195,17 +207,26 @@ Frontend App
 ### Diagram Update Rules
 
 For a new README:
-- Create Mermaid diagrams for User Flow and System Architecture Flow.
+- Create a Mermaid User Flow diagram.
+- Follow the System Architecture Flow section for the architecture Mermaid diagram.
 - Keep node labels short and readable.
 - Use left-to-right or top-down direction consistently.
 
 For an existing README:
 - First check whether the README already has Mermaid diagrams, ASCII diagrams, image links, or external diagram links.
-- If existing Mermaid diagrams are present, update those diagrams instead of adding duplicates.
-- If existing ASCII diagrams are present, replace them with Mermaid when the flow is clear.
-- If existing image or external diagram links are present, preserve them when still accurate.
-- Do not delete old diagrams unless they are clearly obsolete or replaced by better current Mermaid diagrams.
+- For System Architecture, defer to the System Architecture Flow section as the single source of truth.
+- If existing User Flow Mermaid diagrams are present, update those diagrams instead of adding duplicates.
+- If existing User Flow ASCII diagrams are present, replace them with Mermaid when the flow is clear.
+- Do not delete old diagrams unless they are clearly obsolete or replaced by a better current diagram.
 - Do not create duplicate diagrams on repeated README updates.
+
+### System Architecture Completion Checks
+
+Before finishing:
+- `## System Architecture Flow` contains a Mermaid diagram, not an image link.
+- The Mermaid diagram's major nodes match the detected architecture.
+- The Mermaid diagram uses short noun labels and short action labels.
+- If architecture confirmation is missing and no accurate Mermaid diagram can be preserved, stop and ask for confirmation instead of writing a final README.
 
 ### Tech Stack
 
