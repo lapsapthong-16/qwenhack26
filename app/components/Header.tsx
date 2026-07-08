@@ -5,11 +5,9 @@ import { usePathname } from "next/navigation";
 
 export default function Header() {
   const pathname = usePathname();
-  const isHome = pathname === "/";
   const nav = [
     ["/review", "Review"],
     ["/history", "History"],
-    ["/terminal", "Terminal"],
   ] as const;
 
   return (
@@ -18,12 +16,9 @@ export default function Header() {
         <span aria-hidden="true" className="mark" />
         Locksmith
       </Link>
-      {!isHome ? <nav aria-label="Primary">
-        {nav.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}
-      </nav> : null}
-      <div className="header-actions">
-        <Link className={`header-cta ${pathname === "/review" ? "active" : ""}`} href="/review">Scan repository</Link>
-      </div>
+      <nav aria-label="Primary">
+        {nav.map(([href, label]) => <Link className={pathname === href || (pathname === "/" && href === "/review") ? "active" : ""} href={href} key={href}>{label}</Link>)}
+      </nav>
     </header>
   );
 }

@@ -72,22 +72,15 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  A["Browser UI"] --> B["Next.js App Router"]
-  B --> C["/api/repo"]
-  B --> D["/api/review"]
-  B --> E["/api/review/:id"]
-  B --> F["/api/history"]
-  C --> G["GitHub REST API"]
-  D --> H["In-memory review job store"]
-  H --> I["Locksmith core engine"]
-  I --> J["Raw GitHub dependency files"]
-  I --> K["npm registry and tarballs"]
-  I --> L["PyPI JSON and artifacts"]
-  I --> M["Qwen OpenAI-compatible API"]
-  I --> N["Dependency state hash"]
-  H --> O[".locksmith/reviews.json"]
-  F --> O
-  P["Node CLI"] --> I
+  U[User] -->|provide repo| L[Locksmith]
+  L -->|retrieve| G[GitHub]
+  G -->|send files| E[Review Engine]
+  E -->|fetch| N[npm]
+  E -->|fetch| P[PyPI]
+  E -->|review| Q[Qwen Agents]
+  N -->|evidence| Q
+  P -->|evidence| Q
+  Q -->|store| S[Local JSON]
 ```
 
 ## Six-Agent Review Panel
