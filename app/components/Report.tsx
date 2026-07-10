@@ -13,12 +13,12 @@ export const agents = [
 ] as const;
 
 export type Verdict = "Allow" | "Review" | "Block";
-export type Finding = { role:string; summary:string; evidence:string[]; verdict:Verdict; confidence:number };
+export type Finding = { role:string; summary:string; evidence:string[]; verdict:Verdict; confidence:number; packageName?:string };
 export type RoleStatus = "queued"|"running"|"done"|"failed";
 export type SuspiciousLine = { filePath:string; startLine:number; endLine?:number; severity:"low"|"medium"|"high"|"critical"; sourceAgent:string; reviewedBy?:string; reason:string; rule?:string };
 export type PackageFile = { path:string; reason:string; content:string; contentTruncated?:boolean; displayedBytes?:number; originalBytes?:number };
-export type PackageEvidence = { name:string; version:string; packageManager?:"npm"|"pypi"; dependencyType:string; scanStatus?:"new"|"reused"|"changed"|"unscanned"; previousReviewId?:string; evidenceId?:string; evidenceSource?:"global-cache"|"workspace-cache"|"fresh-scan"|"none"; artifactKey?:string; fileCount:number; files:string[]; inspectedFiles:PackageFile[]; suspiciousLines?:SuspiciousLine[]; status:Verdict; reason:string; evidence?:string[] };
-export type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string };
+export type PackageEvidence = { name:string; version:string; packageManager?:"npm"|"pypi"; dependencyType:string; scanStatus?:"new"|"reused"|"changed"|"unscanned"; previousReviewId?:string; evidenceId?:string; evidenceSource?:"global-cache"|"workspace-cache"|"fresh-scan"|"none"; artifactKey?:string; fileCount:number; files:string[]; inspectedFiles:PackageFile[]; suspiciousLines?:SuspiciousLine[]; status:Verdict; reason:string; evidence?:string[]; retention?:string };
+export type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string; branch?:string; createdAt?:string; packageManager?:string };
 export type ReportJob = {
   status:"queued"|"retrieving-packages"|"running"|"complete"|"failed";
   currentRole?:string;
@@ -31,16 +31,29 @@ export type ReportJob = {
   result?:ReviewResult;
 };
 
+const packageAgents = ["Manifest", "Static", "Behavior", "Skeptic"];
+
 export default function Report({ result, job }:{ result:ReviewResult; job?:ReportJob }) {
   const [selectedPackageKey, setSelectedPackageKey] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState("");
+  const [query, setQuery] = useState("");
   const findings = job?.findings || result.findings || [];
   const packages = result.packages || job?.packages || [];
   const completed = new Set(job?.completedRoles || findings.map(finding => finding.role));
   const selectedPackage = packages.find(pkg => keyFor(pkg) === selectedPackageKey) || packages[0];
-  const selectedFile = selectedPackage?.inspectedFiles.find(file => file.path === selectedFilePath) || selectedPackage?.inspectedFiles[0];
-  const suspiciousCount = packages.reduce((sum, pkg) => sum + (pkg.suspiciousLines?.length || 0), 0);
-  const verdictCounts = { allow: packages.filter(pkg => pkg.status === "Allow").length, review: packages.filter(pkg => pkg.status === "Review").length, block: packages.filter(pkg => pkg.status === "Block").length };
+  const selectedFile = selectedPackage?.inspectedFiles.find(file => file.path === selectedFilePath);
+  const visiblePackages = packages.filter(pkg => keyFor(pkg).toLowerCase().includes(query.toLowerCase()));
+  const packageFindings = selectedPackage ? packageAgents.map(role => findings.find(item => item.role === role && findingMatchesPackage(item, selectedPackage))).filter(Boolean) as Finding[] : [];
+  const baseline = findings.find(item => item.role === "Baseline");
+  const judge = findings.find(item => item.role === "Judge");
+  const counts = {
+    attention: packages.filter(pkg => pkg.status !== "Allow").length,
+    added: packages.filter(pkg => pkg.scanStatus === "new").length,
+    updated: packages.filter(pkg => pkg.scanStatus === "changed").length,
+    approved: packages.filter(pkg => pkg.status === "Allow").length,
+    review: packages.filter(pkg => pkg.status === "Review").length,
+    block: packages.filter(pkg => pkg.status === "Block").length,
+  };
 
   useEffect(() => {
     if (!packages.length) return;
@@ -49,73 +62,73 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
 
   useEffect(() => {
     if (!selectedPackage) return;
-    if (!selectedFile || !selectedPackage.inspectedFiles.some(file => file.path === selectedFilePath)) setSelectedFilePath(selectedPackage.inspectedFiles[0]?.path || "");
+    const suspiciousFile = selectedPackage.suspiciousLines?.[0]?.filePath;
+    const fallback = suspiciousFile || selectedPackage.inspectedFiles[0]?.path || "";
+    if (!selectedFilePath || !selectedPackage.inspectedFiles.some(file => file.path === selectedFilePath)) setSelectedFilePath(fallback);
   }, [selectedPackage, selectedFile, selectedFilePath]);
 
   return <section className="review-shell" aria-live="polite">
-    <header className="review-topbar">
-      <div><p className="eyebrow">Dependency state <code>{result.dependencyStateId}</code></p><h1 className={`verdict-${result.verdict.toLowerCase()}`}>{result.verdict}</h1></div>
-      <dl>
-        <div><dt>Packages</dt><dd>{packages.length}</dd></div>
-        <div><dt>Suspicious</dt><dd>{suspiciousCount}</dd></div>
-        <div><dt>Allow</dt><dd>{verdictCounts.allow}</dd></div>
-        <div><dt>Review</dt><dd>{verdictCounts.review}</dd></div>
-        <div><dt>Block</dt><dd>{verdictCounts.block}</dd></div>
-      </dl>
+    <header className="report-header">
+      <h1><img src="/assets/12_locksmith_logo.png" alt="" />Report</h1>
+      <div className="report-meta-table">
+        <Meta label="Repository" value={shortSource(result.source)} />
+        <Meta label="Branch" value={result.branch || "main"} />
+        <Meta label="Dependency State ID" value={result.dependencyStateId} />
+        <Meta label="Review ID" value={result.reviewId} />
+        <Meta label="Package Manager" value={result.packageManager || packages[0]?.packageManager || "npm"} />
+        <Meta label="Files Used" value={result.files.join(", ") || "unknown"} wide />
+      </div>
+      <div className="report-actions"><time>{formatDate(result.createdAt)}</time><button type="button">Download Report</button></div>
     </header>
 
-    <section className="review-grid">
-      <aside className="package-list" aria-label="Packages">
-        <h2>Dependency queue</h2>
-        {packages.map(pkg => {
+    <section className="repo-agents">
+      <RepoAgent role="Baseline" finding={baseline} state={roleState("Baseline", job, completed, baseline)} result={result} counts={counts} />
+      <RepoAgent role="Judge" finding={judge} state={roleState("Judge", job, completed, judge)} result={result} />
+    </section>
+
+    <section className="report-workbench">
+      <aside className="package-list" id="packages" aria-label="Packages">
+        <div className="package-list-head"><h2>Packages <span>({result.packageCount || packages.length})</span></h2><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search packages" aria-label="Search packages" /></div>
+        <div className="package-filters">
+          <Badge label="Needs attention" count={counts.attention} tone="review" />
+          <Badge label="Added" count={counts.added} tone="block" />
+          <Badge label="Updated" count={counts.updated} tone="review" />
+          <Badge label="Approved" count={counts.approved} tone="allow" />
+          <Badge label="Review Required" count={counts.review} tone="review" />
+          <Badge label="Block" count={counts.block} tone="block" />
+        </div>
+        {visiblePackages.map(pkg => {
           const active = keyFor(pkg) === keyFor(selectedPackage);
-          return <button className={`package-row status-${pkg.status.toLowerCase()} ${active ? "selected" : ""}`} key={keyFor(pkg)} onClick={() => { setSelectedPackageKey(keyFor(pkg)); setSelectedFilePath(pkg.inspectedFiles[0]?.path || ""); }}>
-            <span><strong>{pkg.name}</strong><code>{pkg.version}</code></span>
-            <small>{label(pkg.packageManager || pkg.dependencyType)} · {label(pkg.scanStatus || "new")} · {label(pkg.evidenceSource || "fresh-scan")}</small>
-            <em>{pkg.fileCount} files · {pkg.suspiciousLines?.length || 0} suspicious</em>
-            <b>{pkg.status}</b>
+          const suspicious = pkg.suspiciousLines?.length || 0;
+          return <button className={`package-row status-${pkg.status.toLowerCase()} ${active ? "selected" : ""}`} aria-pressed={active} key={keyFor(pkg)} onClick={() => { setSelectedPackageKey(keyFor(pkg)); setSelectedFilePath(pkg.suspiciousLines?.[0]?.filePath || pkg.inspectedFiles[0]?.path || ""); }}>
+            <b>{pkg.scanStatus === "unscanned" ? "Skipped" : uiVerdict(pkg.status)}</b>
+            <span><strong>{pkg.name}</strong><code>{versionText(pkg)}</code></span>
+            <small>{pkg.status === "Allow" ? "Approved · summary only" : pkg.reason}</small>
+            <em>{suspicious ? `${suspicious} findings` : "0 findings"}</em>
           </button>;
         })}
+        <footer className="package-pager"><span>Showing 1-{visiblePackages.length} of {result.packageCount || packages.length} packages</span><b>1</b><button type="button" aria-label="Next package page">›</button></footer>
       </aside>
 
-      <section className="file-viewer" aria-label="Package files">
+      <section className="package-inspection" aria-label="Package inspection">
         {selectedPackage ? <>
           <header>
-            <div><h2>{selectedPackage.name}@{selectedPackage.version}</h2><p>{selectedPackage.reason}</p></div>
-            <b className={`verdict-${selectedPackage.status.toLowerCase()}`}>{selectedPackage.status}</b>
+            <div><h2>▢ {selectedPackage.name}@{selectedPackage.version}</h2><p><strong>Reason</strong><br />{selectedPackage.reason}</p></div>
+            <span className={`verdict-pill verdict-${selectedPackage.status.toLowerCase()}`}>{uiVerdict(selectedPackage.status)}</span>
           </header>
-          <dl className="package-facts">
-            <div><dt>Scan status</dt><dd>{label(selectedPackage.scanStatus || "new")}</dd></div>
-            <div><dt>Evidence source</dt><dd>{label(selectedPackage.evidenceSource || "fresh-scan")}</dd></div>
-            <div><dt>Global Analysis</dt><dd>{selectedPackage.evidenceId || selectedPackage.artifactKey || "fresh package evidence"}</dd></div>
-            <div><dt>Your Workspace</dt><dd>{selectedPackage.previousReviewId ? `prior review ${selectedPackage.previousReviewId}` : "approval still required"}</dd></div>
-          </dl>
-          <div className="file-layout">
-            <nav className="file-list" aria-label="Files">
-              {selectedPackage.files.map(path => {
-                const inspected = selectedPackage.inspectedFiles.some(file => file.path === path);
-                const count = selectedPackage.suspiciousLines?.filter(line => line.filePath === path).length || 0;
-                return <button className={path === selectedFile?.path ? "selected" : ""} key={path} onClick={() => setSelectedFilePath(path)} disabled={!inspected}>
-                  <span>{path}</span><em>{inspected ? "inspected" : "listed"}{count ? ` · ${count}` : ""}</em>
-                </button>;
-              })}
-            </nav>
-            <CodeViewer file={selectedFile} findings={selectedPackage.suspiciousLines || []} />
-          </div>
+          <GlobalAnalysis pkg={selectedPackage} />
+          {selectedPackage.status === "Allow" ? <div className="safe-summary">{selectedPackage.fileCount} files checked · 0 suspicious · summary only. Greenlit file contents are not retained in saved history.</div> : <FileEvidence pkg={selectedPackage} selectedFile={selectedFile} setSelectedFilePath={setSelectedFilePath} />}
         </> : <p>No packages found.</p>}
       </section>
 
-      <aside className="agent-panel" aria-label="Agents">
-        <h2>Agent panel</h2>
-        <p>Six reviewers, one resolved verdict.</p>
-        {agents.map(agent => {
-          const finding = findings.find(item => item.role === agent.name);
-          const state = job?.roleStatus?.[agent.name] || (finding ? "done" : job?.currentRoles?.includes(agent.name) || job?.currentRole === agent.name ? "running" : completed.has(agent.name) ? "done" : "queued");
-          return <article className={`agent-row agent-${state}`} key={agent.name} title={agent.title}>
-            <span>{agent.icon}</span><div><strong>{agent.name}</strong><p>{job?.roleErrors?.[agent.name] || finding?.summary || (state === "running" ? "Running..." : "Queued")}</p>{finding?.evidence?.length ? <small>{finding.evidence.slice(0, 2).join(" · ")}</small> : null}</div><b>{finding?.verdict || state}</b>
-          </article>;
+      <aside className="agent-panel" id="package-agents" aria-label="Package agent findings">
+        <h2>Agent Findings <span>(for {selectedPackage?.name || "package"})</span></h2>
+        {packageAgents.map(role => {
+          const finding = packageFindings.find(item => item.role === role);
+          const state = roleState(role, job, completed, finding);
+          return <AgentFinding role={role} finding={finding} state={state} pkg={selectedPackage} key={role} />;
         })}
-        <div className="remediation"><span>Remediation</span><p>{result.remediation}</p></div>
+        {selectedPackage ? <div className={`package-verdict status-${selectedPackage.status.toLowerCase()}`}><strong>Package Verdict<br /><span>{uiVerdict(selectedPackage.status)}</span></strong><p>{selectedPackage.status === "Block" ? "Critical concerns remain. Risk: High." : selectedPackage.reason}</p></div> : null}
         <Link className="history-link" href="/history">View history</Link>
       </aside>
     </section>
@@ -130,14 +143,112 @@ export function label(value:string) {
   return value.replaceAll("-", " ");
 }
 
+function Meta({ label, value, wide }:{ label:string; value:string; wide?:boolean }) {
+  return <div className={wide ? "meta-item wide" : "meta-item"}><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function Badge({ label, count, tone }:{ label:string; count:number; tone:"allow"|"review"|"block" }) {
+  return <span className={`filter-badge tone-${tone}`}>{label}<b>{count}</b></span>;
+}
+
+function RepoAgent({ role, finding, state, result, counts }:{ role:"Baseline"|"Judge"; finding?:Finding; state:RoleStatus; result:ReviewResult; counts?:Record<string,number> }) {
+  const isJudge = role === "Judge";
+  return <article className={`repo-agent agent-${state} ${isJudge ? "judge-card" : ""}`}>
+    <header><div><span>{isJudge ? "⚖" : "▱"}</span><strong>{role} Agent</strong><p>{isJudge ? "Evaluated all package findings and agent analyses for this repository." : "Analyzed dependency changes in this commit."}</p></div><b className={isJudge ? `verdict-pill verdict-${result.verdict.toLowerCase()}` : ""}>{isJudge ? uiVerdict(result.verdict) : statusText(state)}</b></header>
+    {isJudge ? <><div className="judge-grid"><div><span>Result</span><strong className={`verdict-${result.verdict.toLowerCase()}`}>{uiVerdict(result.verdict)}</strong></div><div><span>Reasoning</span><p>{finding?.summary || result.packageSummary}</p></div><div><span>Remediation</span><p>{result.remediation}</p></div></div><a href="#package-agents">View full rationale ›</a></>
+      : <><div className="baseline-grid"><Metric label="Changed Files" value={result.files.length} note={result.files.join(", ")} /><Metric label="Added" value={counts?.added || 0} note="new packages" /><Metric label="Updated" value={counts?.updated || 0} note="changed versions" /><Metric label="Reused" value={counts?.approved || 0} note="summary only" /></div><a href="#packages">View baseline details ›</a></>}
+  </article>;
+}
+
+function Metric({ label, value, note }:{ label:string; value:number; note:string }) {
+  return <div><span>{label}</span><strong>{value}</strong><p>{note}</p></div>;
+}
+
+function GlobalAnalysis({ pkg }:{ pkg:PackageEvidence }) {
+  const suspiciousUrl = pkg.suspiciousLines?.find(line => /url|fetch|http|network/i.test(`${line.rule} ${line.reason}`));
+  return <section className="global-analysis">
+    <h3>Global Analysis <span>(retrieved from public/package sources)</span></h3>
+    <div>
+      <Fact title="Registry" body={`${pkg.packageManager || "npm"} package`} foot={pkg.evidenceId || pkg.artifactKey || "fresh evidence"} />
+      <Fact title="Lifecycle Script" body={pkg.suspiciousLines?.some(line => /install|postinstall/i.test(line.filePath)) ? "postinstall" : "not detected"} foot={pkg.scanStatus ? label(pkg.scanStatus) : "scanned"} />
+      <Fact title="Suspicious Signal" body={suspiciousUrl?.rule || pkg.reason} foot={suspiciousUrl ? "High risk evidence" : "No critical public signal"} />
+      <Fact title="Public Evidence" body={`${pkg.suspiciousLines?.length || 0} suspicious ranges`} foot={pkg.retention || (pkg.status === "Allow" ? "summary-only" : "redacted-line-window")} />
+    </div>
+  </section>;
+}
+
+function Fact({ title, body, foot }:{ title:string; body:string; foot:string }) {
+  return <article><strong>{title}</strong><p>{body}</p><span>{foot}</span></article>;
+}
+
+function FileEvidence({ pkg, selectedFile, setSelectedFilePath }:{ pkg:PackageEvidence; selectedFile?:PackageFile; setSelectedFilePath:(path:string)=>void }) {
+  const suspiciousPaths = new Set(pkg.suspiciousLines?.map(line => line.filePath) || []);
+  const ordered = [...pkg.files].sort((a,b) => Number(suspiciousPaths.has(b)) - Number(suspiciousPaths.has(a)));
+  return <div className="file-layout">
+    <nav className="file-list" aria-label="Package files">
+      <h3>Package Files</h3>
+      {ordered.map(path => {
+        const inspected = pkg.inspectedFiles.some(file => file.path === path);
+        const count = pkg.suspiciousLines?.filter(line => line.filePath === path).length || 0;
+        return <button className={`${path === selectedFile?.path ? "selected" : ""} ${count ? "file-suspicious" : ""}`} key={path} onClick={() => setSelectedFilePath(path)} disabled={!inspected}>
+          <span>{path.replace(/^package\//, "")}</span><em>{count ? "Suspicious" : inspected ? "Safe" : "Code unavailable"}</em>
+        </button>;
+      })}
+      <button className="show-files" type="button">Show all files ({pkg.fileCount})</button>
+    </nav>
+    <CodeViewer file={selectedFile} findings={pkg.suspiciousLines || []} />
+  </div>;
+}
+
+function AgentFinding({ role, finding, state, pkg }:{ role:string; finding?:Finding; state:RoleStatus; pkg?:PackageEvidence }) {
+  const keyEvidence = finding?.evidence?.[0] || pkg?.suspiciousLines?.find(line => line.sourceAgent === role)?.filePath || "Waiting for evidence";
+  const safeFallback = !finding && pkg?.status === "Allow" && state === "done";
+  return <article className={`agent-finding agent-${state}`}>
+    <header><strong>{role} Agent</strong><b className={finding || safeFallback ? `verdict-pill verdict-${(finding?.verdict || "Allow").toLowerCase()}` : ""}>{finding ? uiVerdict(finding.verdict) : safeFallback ? "Approved" : statusText(state)}</b></header>
+    <p>{finding?.summary || (safeFallback ? "No package-specific concern for this approved package." : state === "running" ? "Running package review..." : state === "failed" ? "Agent failed" : "Queued")}</p>
+    <dl><div><dt>Evidence</dt><dd>{finding?.evidence?.length || 0}</dd></div><div><dt>Key Evidence</dt><dd>{safeFallback ? "summary-only" : keyEvidence}</dd></div></dl>
+  </article>;
+}
+
+function findingMatchesPackage(finding:Finding, pkg:PackageEvidence) {
+  if (finding.packageName) return finding.packageName === pkg.name || finding.packageName === keyFor(pkg);
+  const haystack = `${finding.summary} ${finding.evidence.join(" ")}`.toLowerCase();
+  return haystack.includes(pkg.name.toLowerCase()) || (pkg.suspiciousLines || []).some(line => finding.evidence.some(item => item.includes(line.filePath)));
+}
+
+function roleState(role:string, job:ReportJob|undefined, completed:Set<string>, finding?:Finding): RoleStatus {
+  return job?.roleStatus?.[role] || (finding ? "done" : job?.currentRoles?.includes(role) || job?.currentRole === role ? "running" : completed.has(role) ? "done" : "queued");
+}
+
+function uiVerdict(verdict:Verdict) {
+  return verdict === "Allow" ? "Approved" : verdict === "Review" ? "Review Required" : "Block";
+}
+
+function statusText(state:RoleStatus) {
+  return state === "done" ? "Completed" : state;
+}
+
+function shortSource(source:string) {
+  return source.replace(/^https:\/\/github.com\//, "").replace(/^fixture:\/\//, "");
+}
+
+function formatDate(value?:string) {
+  return value ? new Date(value).toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" }) : "Live review";
+}
+
+function versionText(pkg:PackageEvidence) {
+  return pkg.scanStatus === "changed" && !pkg.version.includes("→") ? `→ ${pkg.version}` : pkg.version;
+}
+
 function CodeViewer({ file, findings }:{ file?:PackageFile; findings:SuspiciousLine[] }) {
   if (!file) return <div className="code-empty">Select an inspected file.</div>;
   const byLine = new Map<number,SuspiciousLine[]>();
   for (const finding of findings.filter(item => item.filePath === file.path)) {
     for (let line = finding.startLine; line <= (finding.endLine || finding.startLine); line++) byLine.set(line, [...(byLine.get(line) || []), finding]);
   }
+  const fileFindings = findings.filter(item => item.filePath === file.path);
   return <div className="code-pane">
-    <div className="code-meta"><strong>{file.path}</strong>{file.contentTruncated ? <span>Showing first {Math.ceil((file.displayedBytes || file.content.length) / 1024)} KB of {Math.ceil((file.originalBytes || file.content.length) / 1024)} KB</span> : <span>{file.reason}</span>}</div>
+    <div className="code-meta"><strong>{file.path.replace(/^package\//, "")}</strong>{fileFindings.length ? <em>View suspicious code</em> : null}<button type="button">Raw</button>{file.contentTruncated ? <span>Truncated evidence</span> : <span>{file.reason}</span>}</div>
     <pre>{file.content.split(/\r?\n/).map((line,index) => {
       const number = index + 1;
       const hits = byLine.get(number) || [];
@@ -145,6 +256,6 @@ function CodeViewer({ file, findings }:{ file?:PackageFile; findings:SuspiciousL
         <span>{number}</span><mark title={hits.map(hit => hit.reason).join(" ")}>{line || " "}</mark>
       </code>;
     })}</pre>
-    {findings.filter(item => item.filePath === file.path).length ? <ul className="line-reasons">{findings.filter(item => item.filePath === file.path).map(item => <li key={`${item.filePath}:${item.startLine}:${item.rule}`}><b>Line {item.startLine}</b> <em>{item.sourceAgent} · {item.severity}{item.rule ? ` · ${item.rule}` : ""}</em> {item.reason}</li>)}</ul> : null}
+    {fileFindings.length ? <ul className="line-reasons">{fileFindings.map((item, index) => <li key={`${item.filePath}:${item.startLine}:${item.rule}`}><b>{index + 1}</b> <span>{item.startLine}{item.endLine ? `-${item.endLine}` : ""}</span> {item.reason}</li>)}</ul> : null}
   </div>;
 }

@@ -75,6 +75,7 @@ body:has(.home-page){background:var(--paper);color:var(--ink);font-family:var(--
 .hero-copy h1,.state-section h2,.panel-copy h2{margin:0;font-size:clamp(52px,4.9vw,78px);line-height:.98;letter-spacing:-.055em;font-weight:780}
 .hero-copy p{margin:15px 0 0;color:#707a6d;font-size:clamp(18px,1.35vw,23px)}
 .hero-actions{display:flex;align-items:center;justify-content:center;gap:30px;margin-top:26px}
+.hero-copy,.panel-copy,.artifact-copy,.evidence-copy,.plans-copy,.final-copy{min-width:0;max-width:100%}
 
 .state-section{
   min-height:100dvh;
@@ -244,25 +245,82 @@ body:has(.home-page){background:var(--paper);color:var(--ink);font-family:var(--
 }
 
 @media(max-width:1000px){
-  .home-page section{min-height:auto}
-  .home-hero{padding-bottom:44px}
-  .hero-copy{margin-top:-18px}
-  .state-section,.panel-section,.artifact-section,.workflow-section,.evidence-section,.plans-section,.final-section{padding:52px 5vw}
+  .home-page section{height:auto;min-height:auto;overflow:hidden}
+  .home-page .home-hero{height:760px;min-height:760px;padding-bottom:44px}
+  .hero-art{width:142vw;height:560px}
+  .hero-copy{bottom:36px}
+  .hero-copy h1,.state-section h2,.panel-copy h2{font-size:clamp(46px,8vw,68px)}
+  .state-section,.panel-section,.artifact-section,.workflow-section,.evidence-section,.plans-section,.final-section{height:auto;min-height:auto;padding:52px 5vw}
+  .home-page .state-section{min-height:720px;grid-template-rows:auto auto minmax(260px,1fr) auto}
+  .state-row{width:min(112vw,980px)}
   .panel-section,.artifact-section,.plans-section{grid-template-columns:1fr}
-  .panel-art,.artifact-art{width:110vw;margin:28px 0 0 -12vw}
-  .workflow-cards{position:relative;left:auto;right:auto;top:auto;margin-top:38px;grid-template-columns:1fr 1fr}
-  .workflow-line{display:none}.workflow-card{min-height:300px}.workflow-card-4{min-height:430px}.workflow-cta{position:static;display:block;transform:none;margin:28px auto 0}
-  .evidence-section{min-height:900px}.evidence-copy{left:5vw;top:52px;width:86vw}.quote-stack{width:86vw;left:7vw;right:auto;top:320px}
-  .plans-meta{position:static;grid-column:1}.plans-copy{padding-top:0}.use-card{height:auto;min-height:440px}
-  .final-section{padding-bottom:0}
+  .panel-copy,.artifact-copy,.evidence-copy,.plans-copy,.final-copy{max-width:100%}
+  .panel-copy{height:auto;justify-content:flex-start}
+  .panel-count{margin-bottom:32px}
+  .panel-art{width:min(120vw,960px)!important;margin:28px 0 0 -10vw}
+  .artifact-section{gap:28px;padding-top:82px}
+  .artifact-count{top:34px;right:5vw}
+  .artifact-art{width:min(104vw,820px)!important;margin:0 0 0 -8vw}
+  .artifact-copy{transform:none}
+  .workflow-section h2{margin-top:42px}
+  .workflow-cards{position:relative;left:auto;right:auto;top:auto;bottom:auto;margin-top:58px;grid-template-columns:1fr 1fr;gap:28px}
+  .workflow-line{display:none}
+  .workflow-card,.workflow-card-2,.workflow-card-4{height:auto;min-height:330px}
+  .workflow-card-4{min-height:420px}
+  .workflow-cta{position:static;display:block;transform:none;margin:42px auto 0;text-align:center}
+  .home-page .evidence-section{min-height:980px;padding:56px 5vw}
+  .evidence-copy{position:relative;left:auto;bottom:auto;top:auto;width:min(720px,90vw)}
+  .quote-stack{position:relative;left:auto;right:auto;top:auto;width:min(720px,90vw);margin:260px 0 0 auto}
+  .plans-section{gap:22px;align-items:stretch}
+  .plans-meta{position:static;grid-column:1}
+  .plans-copy{padding-top:0}
+  .plans-actions{margin-bottom:10px}
+  .use-card{height:auto;min-height:420px}
+  .home-page .final-section{min-height:840px;padding-bottom:0}
+  .final-copy{top:44px}
+  .dossier-art{bottom:-80px;width:min(104vw,820px)}
 }
 
 @media(max-width:680px){
-  .hero-art{width:155%;max-width:none;transform:translateX(-9%)}
-  .hero-copy h1,.state-section h2,.panel-copy h2,.plans-copy h2{font-size:48px}
+  .button,.outline-link,.text-link{font-size:17px}
+  .home-page .home-hero{height:700px;min-height:700px}
+  .hero-art{left:50%;width:172vw;height:470px;transform:translateX(-50%)}
+  .hero-copy{bottom:28px;width:90vw}
+  .hero-copy h1,.state-section h2,.panel-copy h2,.plans-copy h2{font-size:42px;letter-spacing:-.045em}
+  .hero-copy p,.artifact-copy p,.evidence-copy p,.final-copy p{font-size:18px}
   .hero-actions,.plans-actions{flex-direction:column;align-items:stretch}
-  .hero-primary,.outline-link{width:100%}
+  .hero-primary,.outline-link,.button{width:100%;min-width:0}
+  .home-page .state-section{min-height:650px}
   .state-row{width:160%;margin-left:-30%}
+  .state-link{justify-self:start;font-size:18px}
+  .panel-art{width:150vw!important;margin-left:-28vw}
+  .artifact-copy h2,.evidence-copy h2,.final-copy h2{font-size:44px;letter-spacing:-.045em}
+  .artifact-art{width:128vw!important;margin-left:-20vw}
   .workflow-cards{grid-template-columns:1fr}
+  .workflow-section h2{font-size:42px}
+  .workflow-card,.workflow-card-2,.workflow-card-4{min-height:300px}
+  .workflow-card-4{min-height:410px}
+  .workflow-cta{font-size:20px}
+  .home-page .evidence-section{min-height:1120px}
+  .quote-stack{width:90vw;margin-top:220px}
   .quote-stack article{grid-template-columns:56px 1fr;padding:20px}.quote-stack span{width:46px;height:46px}.quote-stack q{font-size:27px}
+  .card-head{grid-template-columns:48px 1fr;gap:10px}
+  .card-head em{grid-column:2;width:max-content}
+  .home-page .final-section{min-height:760px}
+  .final-copy img{width:112px;height:112px}
+  .dossier-art{bottom:-46px;width:128vw}
+}
+
+@media(max-width:430px){
+  .home-page .home-hero{height:640px;min-height:640px}
+  .hero-art{height:420px;width:190vw}
+  .hero-copy h1,.state-section h2,.panel-copy h2,.plans-copy h2{font-size:36px}
+  .state-section,.panel-section,.artifact-section,.workflow-section,.evidence-section,.plans-section,.final-section{padding-left:18px;padding-right:18px}
+  .workflow-meta,.plans-meta{font-size:13px;gap:10px;letter-spacing:.12em}
+  .workflow-card img,.workflow-card-2 img,.workflow-card-4 img{width:96px;height:96px}
+  .workflow-card{grid-template-rows:28px 104px auto 1fr}
+  .quote-stack{width:100%}
+  .quote-stack article{height:auto;min-height:170px}
+  .terminal-box,.trust-box,.pr-box{padding:16px}
+  .final-copy h2{font-size:38px}
 }

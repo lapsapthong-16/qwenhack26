@@ -95,6 +95,21 @@ export default function ReviewPage() {
   const result = job?.result;
   const findings = job?.findings || result?.findings || [];
   const packages = result?.packages || job?.packages || [];
+  const reportResult = result || (job && packages.length ? {
+    reviewId: job.reviewId,
+    dependencyStateId: "pending",
+    source: repo,
+    files: [],
+    packages,
+    packageCount: packages.length,
+    inspectedPackageCount: packages.length,
+    packageSummary: "Review still running.",
+    findings,
+    verdict: "Review" as const,
+    remediation: "Waiting for Judge Agent.",
+    mode: "qwen",
+    model: "live",
+  } satisfies ReviewResult : undefined);
 
   return <main className="review-page">
     {phase === "input" ? <section className="review-start">
@@ -105,7 +120,7 @@ export default function ReviewPage() {
       {error ? <p className="review-error" role="alert">{error}</p> : null}
     </section> : null}
 
-    {phase === "audit" ? <section className="audit-screen" aria-live="polite">
+    {phase === "audit" && !reportResult ? <section className="audit-screen" aria-live="polite">
       <div className="audit-head"><div><p className="eyebrow">Live dependency review</p><h1>Building the case.</h1></div><strong>{findings.length.toString().padStart(2,"0")} / 06</strong></div>
       <div className="audit-repo"><i /> Reviewing <code>{repo}</code></div>
       {job?.status === "retrieving-packages" || packages.length ? <section className="package-panel">
@@ -131,7 +146,7 @@ export default function ReviewPage() {
       })}</div>
     </section> : null}
 
-    {phase === "report" && result ? <Report result={result} job={job || undefined} /> : null}
+    {(phase === "report" || phase === "audit") && reportResult ? <Report result={reportResult} job={job || undefined} /> : null}
   </main>;
 }
 
@@ -179,30 +194,42 @@ function fixtureJob(): ReviewJob {
     inspectedFiles: [{ path: "package/package.json", reason: "package manifest", content: "{\"name\":\"next\"}" }],
     suspiciousLines: [],
     status: "Allow" as const,
-    reason: "Package evidence reused from global cache. Workspace approval still checked separately.",
+    reason: "Package evidence reused from global cache. No suspicious files found.",
     evidence: [],
   };
-  const findings = agents.map(agent => ({
-    role: agent.name,
-    verdict: agent.name === "Judge" ? "Block" as const : "Review" as const,
-    summary: agent.name === "Static" ? "Found credential file access and outbound upload." : `${agent.name} checked package evidence.`,
-    evidence: agent.name === "Static" ? ["package/scripts/postinstall.js line 8"] : [`${agent.name} evidence`],
-    confidence: 0.8,
-  }));
+  const reviewPkg = fixturePackage("axios", "1.6.7 → 1.6.8", "Review" as const, "Changed package with one metadata concern.", "changed" as const);
+  const lodash = fixturePackage("lodash", "4.17.22", "Allow" as const, "Package evidence reused from global cache. No suspicious files found.", "changed" as const);
+  const react = fixturePackage("react", "18.3.1", "Allow" as const, "Package evidence reused from global cache. No suspicious files found.", "reused" as const);
+  const chalk = fixturePackage("chalk", "5.3.0", "Allow" as const, "Package evidence reused from global cache. No suspicious files found.", "reused" as const);
+  const skipped = fixturePackage("fsevents", "2.3.3", "Allow" as const, "Optional dependency skipped because artifact code is unavailable.", "unscanned" as const);
+  skipped.inspectedFiles = [];
+  skipped.files = [];
+  skipped.fileCount = 0;
+  const findings = [
+    { role: "Baseline", verdict: "Review" as const, summary: "Detected one added package, one package needing review, and four reused packages.", evidence: ["package.json", "package-lock.json"], confidence: 0.85 },
+    { role: "Manifest", packageName: "fake-logger", verdict: "Allow" as const, summary: "Package manifest is standard. No suspicious dependencies beyond postinstall.", evidence: ["fake-logger package.json: scripts.postinstall"], confidence: 0.74 },
+    { role: "Static", packageName: "fake-logger", verdict: "Review" as const, summary: "Found credential file access and outbound upload in fake-logger.", evidence: ["package/scripts/postinstall.js line 8"], confidence: 0.86 },
+    { role: "Behavior", packageName: "fake-logger", verdict: "Block" as const, summary: "Install-time execution would POST collected token data to an external endpoint.", evidence: ["fake-logger postinstall network call"], confidence: 0.9 },
+    { role: "Skeptic", packageName: "fake-logger", verdict: "Block" as const, summary: "False-positive challenge rejected; logger packages do not need credential reads.", evidence: ["fake-logger credential file access", "network upload"], confidence: 0.88 },
+    { role: "Judge", verdict: "Block" as const, summary: "High-confidence malicious behavior detected in fake-logger@1.3.0.", evidence: ["Static finding", "Behavior confirmation", "Skeptic confirmation"], confidence: 0.93 },
+  ] satisfies Finding[];
   const result: ReviewResult = {
     reviewId: "rev_fixture",
     dependencyStateId: "state_fixture",
     source: "fixture://locksmith-redesign",
     files: ["package.json", "package-lock.json"],
-    packages: [suspicious, reused],
-    packageCount: 2,
-    inspectedPackageCount: 2,
-    packageSummary: "2 packages reviewed: 1 allow, 0 review, 1 block.",
+    packages: [suspicious, reviewPkg, lodash, reused, react, chalk, skipped],
+    packageCount: 320,
+    inspectedPackageCount: 7,
+    packageSummary: "320 packages reviewed: 5 approved, 1 review required, 1 block.",
     findings,
     verdict: "Block",
     remediation: "Remove fake-logger, rollback the lockfile, or pin the previous approved version.",
     mode: "qwen",
     model: "fixture",
+    branch: "main",
+    packageManager: "npm 10.5.2",
+    createdAt: "2025-05-12T10:42:00.000Z",
   };
   return {
     reviewId: "rev_fixture",
@@ -213,6 +240,26 @@ function fixtureJob(): ReviewJob {
     packages: result.packages,
     findings,
     result,
+  };
+}
+
+function fixturePackage(name:string, version:string, status:ReviewResult["verdict"], reason:string, scanStatus:PackageEvidence["scanStatus"]): PackageEvidence {
+  return {
+    name,
+    version,
+    packageManager: "npm",
+    dependencyType: "dependencies",
+    scanStatus,
+    evidenceSource: scanStatus === "unscanned" ? "none" : "global-cache",
+    evidenceId: `ev_${name.replaceAll("-", "_")}`,
+    artifactKey: `npm:${name}@${version}:fixture`,
+    fileCount: 12,
+    files: ["package/package.json", "package/index.js"],
+    inspectedFiles: [{ path: "package/package.json", reason: "package manifest", content: `{"name":"${name}"}` }],
+    suspiciousLines: [],
+    status,
+    reason,
+    evidence: status === "Review" ? ["metadata age signal"] : [],
   };
 }
 
