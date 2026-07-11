@@ -135,16 +135,16 @@ export default function Home() {
         <div className="plans-meta"><span>7 of 8</span><span>Plans / Use Cases</span></div>
         <div className="plans-copy">
           <h2 id="plans-title">Start local.<br />Add team trust<br />later.</h2>
-          <p>CLI scans today. Workspace approvals when the review needs to be shared.</p>
+          <p>Guard an npm install today. Add workspace approvals when the review needs to be shared.</p>
           <div className="plans-actions">
-            <Link className="button" href="/terminal"><TerminalIcon />Scan locally</Link>
+            <Link className="button" href="/terminal"><TerminalIcon />Guard an install</Link>
             <Link className="outline-link" href="/review"><GithubIcon />Import GitHub</Link>
           </div>
         </div>
         <div className="use-card local">
           <div className="card-head"><span className="mini-icon"><TerminalIcon /></span><b>Local Demo</b><em>Included</em></div>
-          <p>Scan on your machine. Instant results.</p>
-          <div className="terminal-box"><code>node bin/locksmith.mjs scan .</code><strong>Scan complete</strong><span>No issues found</span></div>
+          <p>Review before npm writes a dependency.</p>
+          <div className="terminal-box"><code>locksmith npm install colors@3.0.0</code><strong>Install blocked</strong><span>Review report saved</span></div>
         </div>
         <div className="use-card team">
           <div className="card-head"><span className="mini-icon"><UsersIcon /></span><b>Team Review</b><em>Team</em></div>
@@ -166,7 +166,7 @@ export default function Home() {
         <div className="final-copy">
           <Image src="/assets/12_locksmith_logo.png" width={84} height={84} alt="" />
           <h2 id="final-title">Review the lockfile<br />before merge.</h2>
-          <p>Import a public repo or scan your local project.</p>
+          <p>Import a public repo or guard your next npm install.</p>
           <div className="hero-actions">
             <Link className="button hero-primary" href="/review">Start a review</Link>
             <Link className="text-link" href="/terminal">Run the CLI</Link>

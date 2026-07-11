@@ -1,5 +1,5 @@
-import type { ReviewResult } from "./locksmith";
-import type { PackageEvidence } from "./npmPackages";
+import type { ReviewResult } from "./locksmith.ts";
+import type { PackageEvidence } from "./npmPackages.ts";
 
 type AnyPackage = ReviewResult["packages"][number] | PackageEvidence;
 

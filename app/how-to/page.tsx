@@ -8,9 +8,9 @@ const webSteps = [
 ] as const;
 
 const terminalSteps = [
-  ["01", "Scan current project", "$ locksmith scan .", "Run inside the repository before installing or merging."],
-  ["02", "Read panel findings", "Six Qwen agents", "Review each role's finding and the Judge verdict."],
-  ["03", "Use the smallest fix", "Pin, remove, or wait", "Apply the Judge remediation before installing or merging."],
+  ["01", "Request an install", "$ locksmith npm install <package>", "Locksmith resolves a candidate lockfile with scripts disabled, before the real project changes."],
+  ["02", "Read the decision", "Allow / Review / Block", "Six Qwen agents inspect the candidate state; Review and Block stop npm."],
+  ["03", "Install the approved state", "npm ci from reviewed lockfile", "Allow installs only the reviewed lockfile and saves the HTML report under .locksmith/reports."],
 ] as const;
 
 export default function HowToPage() {
@@ -18,7 +18,7 @@ export default function HowToPage() {
     <section className="how-hero wrap">
       <p className="eyebrow">How to use Locksmith</p>
       <h1>Two surfaces.<br />One decision.</h1>
-      <p>Use web UI for shared review. Use terminal before install or merge. Both resolve same dependency state.</p>
+      <p>Use the web UI for repository analysis. Use the terminal to gate an npm install. Both use the same dependency evidence and six-agent review engine.</p>
     </section>
     <section className="how-grid wrap">
       <article>
@@ -28,8 +28,8 @@ export default function HowToPage() {
         <Link className="button" href="/review">Start web review <span aria-hidden="true">→</span></Link>
       </article>
       <article>
-        <div className="surface-head"><span className="eyebrow">Terminal</span><code>locksmith scan .</code></div>
-        <h2>Pre-install check.</h2>
+        <div className="surface-head"><span className="eyebrow">Terminal</span><code>locksmith npm install</code></div>
+        <h2>Guarded install.</h2>
         <ol>{terminalSteps.map(([n,title,command,body]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><code className="step-command">{command}</code><p>{body}</p></div></li>)}</ol>
         <Link className="button secondary" href="/terminal">See terminal demo <span aria-hidden="true">→</span></Link>
       </article>

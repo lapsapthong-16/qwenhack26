@@ -1,9 +1,11 @@
 import { gunzip } from "node:zlib";
 import { promisify } from "node:util";
-import type { Verdict } from "./locksmith";
+import { createHash } from "node:crypto";
+import type { Verdict } from "./locksmith.ts";
 
 const unzip = promisify(gunzip);
-const MAX_PACKAGES = 20;
+const MAX_WEB_PACKAGES = 20;
+const MAX_GUARDED_PACKAGES = 100;
 const MAX_SCAN_FILES = 40;
 const MAX_READ_FILES = 12;
 const MAX_FILE_BYTES = 20_000;
@@ -30,6 +32,7 @@ export type PackageEvidence = {
   evidenceId?: string;
   evidenceSource: "global-cache" | "workspace-cache" | "fresh-scan" | "none";
   artifactKey?: string;
+  verifiedIntegrity?: string;
   tarballUrl?: string;
   fileCount: number;
   files: string[];
@@ -43,7 +46,7 @@ export type PackageEvidence = {
 type TarEntry = { path: string; content: Buffer };
 
 export type PackageProgress = (packages: PackageEvidence[]) => void;
-export type PackageCollectionContext = { cached?: PackageEvidence[]; previous?: PackageEvidence[] };
+export type PackageCollectionContext = { cached?: PackageEvidence[]; previous?: PackageEvidence[]; requireFullCoverage?: boolean };
 
 function isMarkdown(path: string) {
   return /\.(md|mdx|markdown)$/i.test(path);
@@ -62,13 +65,29 @@ function parseJson<T>(name: string, content?: string): T {
   }
 }
 
-function lockVersion(lock: Record<string, any>, name: string) {
-  return lock.packages?.[`node_modules/${name}`]?.version || lock.dependencies?.[name]?.version;
+function lockArtifactKey(name: string, version: string, entry: Record<string, any> = {}) {
+  return `npm:${name}@${version}:${entry.integrity || entry.resolved || "registry"}`;
 }
 
-function lockArtifactKey(lock: Record<string, any>, name: string, version: string) {
-  const entry = lock.packages?.[`node_modules/${name}`] || lock.dependencies?.[name] || {};
-  return `npm:${name}@${version}:${entry.integrity || entry.resolved || "registry"}`;
+type LockedPackage = { name: string; version: string; entry: Record<string, any>; dependencyType: string };
+
+function packageNameFromLockPath(path: string) {
+  const marker = "node_modules/";
+  const index = path.lastIndexOf(marker);
+  return index < 0 ? "" : path.slice(index + marker.length);
+}
+
+function lockedPackages(lock: Record<string, any>): LockedPackage[] {
+  return Object.entries(lock.packages || {})
+    .filter(([path, entry]) => path !== "" && entry && typeof entry === "object")
+    .map(([path, raw]) => {
+      const entry = raw as Record<string, any>;
+      const name = typeof entry.name === "string" ? entry.name : packageNameFromLockPath(path);
+      const version = typeof entry.version === "string" ? entry.version : "";
+      return { name, version, entry, dependencyType: entry.dev ? "npm:dev/transitive" : "npm:production/transitive" };
+    })
+    .filter(item => item.name && item.version)
+    .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
 }
 
 function registryUrl(name: string) {
@@ -186,15 +205,34 @@ function reusePackage(pkg: PackageEvidence, scanStatus: PackageEvidence["scanSta
   return { ...pkg, scanStatus, evidenceSource: "global-cache", previousReviewId };
 }
 
-async function inspectPackage(name: string, version: string, artifactKey?: string): Promise<PackageEvidence> {
-  const metadataResponse = await fetch(registryUrl(name), { signal: AbortSignal.timeout(10_000) });
-  if (!metadataResponse.ok) throw new Error(`npm metadata failed (${metadataResponse.status})`);
-  const metadata = await metadataResponse.json() as any;
-  const tarballUrl = metadata.versions?.[version]?.dist?.tarball;
+export function verifyNpmIntegrity(bytes: Buffer, integrity: string) {
+  const token = integrity.split(/\s+/).find(item => /^sha(?:256|384|512)-/i.test(item));
+  if (!token) throw new Error("npm lockfile integrity is missing a supported SHA digest");
+  const [algorithm, expected] = token.split("-", 2);
+  const actual = createHash(algorithm).update(bytes).digest("base64");
+  if (actual !== expected) throw new Error("npm tarball integrity does not match package-lock.json");
+}
+
+function allowedResolvedTarball(resolved: string) {
+  const url = new URL(resolved);
+  if (url.protocol !== "https:" || url.hostname !== "registry.npmjs.org") throw new Error("Guarded npm install only supports HTTPS tarballs resolved by registry.npmjs.org.");
+  return url.toString();
+}
+
+async function inspectPackage(name: string, version: string, artifactKey?: string, dependencyType = "npm:production/transitive", resolved?: string, integrity?: string): Promise<PackageEvidence> {
+  let tarballUrl = resolved ? allowedResolvedTarball(resolved) : undefined;
+  if (!tarballUrl) {
+    const metadataResponse = await fetch(registryUrl(name), { signal: AbortSignal.timeout(10_000) });
+    if (!metadataResponse.ok) throw new Error(`npm metadata failed (${metadataResponse.status})`);
+    const metadata = await metadataResponse.json() as any;
+    tarballUrl = metadata.versions?.[version]?.dist?.tarball;
+  }
   if (!tarballUrl) throw new Error(`npm tarball not found for ${version}`);
   const tarballResponse = await fetch(tarballUrl, { signal: AbortSignal.timeout(15_000) });
   if (!tarballResponse.ok) throw new Error(`npm tarball failed (${tarballResponse.status})`);
-  const entries = parseTar(await unzip(Buffer.from(await tarballResponse.arrayBuffer())));
+  const compressed = Buffer.from(await tarballResponse.arrayBuffer());
+  if (integrity) verifyNpmIntegrity(compressed, integrity);
+  const entries = parseTar(await unzip(compressed));
   const files = entries.map(entry => displayedPath(entry.path)).sort();
   const inspectedFiles = selectFiles(entries);
   const lines = findNpmSuspiciousLines(inspectedFiles);
@@ -202,10 +240,11 @@ async function inspectPackage(name: string, version: string, artifactKey?: strin
     name,
     version,
     packageManager: "npm",
-    dependencyType: "dependencies",
+    dependencyType,
     scanStatus: "new",
     evidenceSource: "fresh-scan",
     artifactKey: artifactKey || `npm:${name}@${version}:${tarballUrl}`,
+    verifiedIntegrity: integrity,
     tarballUrl,
     fileCount: files.length,
     files,
@@ -218,47 +257,49 @@ async function inspectPackage(name: string, version: string, artifactKey?: strin
 
 export async function collectNpmPackageEvidence(files: Record<string, string>, onProgress?: PackageProgress, context: PackageCollectionContext = {}) {
   if (!files["package.json"]) return [];
-  const manifest = parseJson<{ dependencies?: Record<string, string> }>("package.json", files["package.json"]);
+  const manifest = parseJson<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>("package.json", files["package.json"]);
   if (!files["package-lock.json"]) {
-    return Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES).map(name => ({
-      name,
-      version: "unresolved",
-      packageManager: "npm" as const,
-      dependencyType: "npm:dependencies",
-      scanStatus: "unscanned" as const,
-      evidenceSource: "none" as const,
-      fileCount: 0,
-      files: [],
-      inspectedFiles: [],
-      suspiciousLines: [],
-      status: "Review" as Verdict,
+    if (context.requireFullCoverage) throw new Error("package-lock.json is required for complete npm install coverage.");
+    return Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_WEB_PACKAGES).map(name => ({
+      name, version: "unresolved", packageManager: "npm" as const, dependencyType: "npm:dependencies",
+      scanStatus: "unscanned" as const, evidenceSource: "none" as const, fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review" as Verdict,
       reason: "package-lock.json is required to resolve and inspect the exact npm package version.",
     }));
   }
   const lock = parseJson<Record<string, any>>("package-lock.json", files["package-lock.json"]);
-  const deps = Object.keys(manifest.dependencies || {}).sort().slice(0, MAX_PACKAGES);
+  const fromLock = lockedPackages(lock);
+  if (context.requireFullCoverage && !fromLock.length) throw new Error("npm lockfile v2 or v3 with a packages map is required for complete install coverage.");
+  if (context.requireFullCoverage && fromLock.length > MAX_GUARDED_PACKAGES) throw new Error(`Resolved npm package count (${fromLock.length}) exceeds Locksmith's complete-coverage limit (${MAX_GUARDED_PACKAGES}).`);
+  const fallback = Object.keys(manifest.dependencies || {}).sort().map(name => {
+    const entry = lock.packages?.[`node_modules/${name}`] || lock.dependencies?.[name] || {};
+    return { name, version: typeof entry.version === "string" ? entry.version : "", entry, dependencyType: "npm:dependencies" };
+  });
+  const targets = (context.requireFullCoverage ? fromLock : fallback).slice(0, context.requireFullCoverage ? MAX_GUARDED_PACKAGES : MAX_WEB_PACKAGES);
   const packages: PackageEvidence[] = [];
   const cached = new Map((context.cached || []).map(pkg => [pkg.artifactKey || `${pkg.packageManager}:${pkg.name}@${pkg.version}`, pkg]));
   const previous = new Map((context.previous || []).map(pkg => [pkg.name, pkg]));
-  for (const name of deps) {
-    const version = lockVersion(lock, name);
+  for (const target of targets) {
+    const { name, version, entry, dependencyType } = target;
     const prior = previous.get(name);
     if (!version) {
-      packages.push({ name, version: "unresolved", packageManager: "npm", dependencyType: "npm:dependencies", scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact production dependency version found in package-lock.json." });
+      packages.push({ name, version: "unresolved", packageManager: "npm", dependencyType, scanStatus: "unscanned", evidenceSource: "none", fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: "No exact package version found in package-lock.json." });
     } else {
-      const artifactKey = lockArtifactKey(lock, name, version);
+      const artifactKey = lockArtifactKey(name, version, entry);
       const cachedPackage = cached.get(artifactKey) || cached.get(`npm:${name}@${version}:registry`);
       try {
-        packages.push(cachedPackage
-          ? reusePackage(cachedPackage, prior && prior.version !== version ? "changed" : "reused", prior?.evidenceId || prior?.previousReviewId)
-          : { ...await inspectPackage(name, version, artifactKey), scanStatus: prior && prior.version !== version ? "changed" : "new" });
+        if (context.requireFullCoverage && (typeof entry.resolved !== "string" || typeof entry.integrity !== "string")) throw new Error("Exact resolved tarball URL and integrity are required for guarded npm install.");
+        if (context.requireFullCoverage) allowedResolvedTarball(entry.resolved);
+        const reusableCache = cachedPackage && (!context.requireFullCoverage || cachedPackage.verifiedIntegrity === entry.integrity);
+        packages.push(reusableCache
+          ? { ...reusePackage(cachedPackage, prior && prior.version !== version ? "changed" : "reused", prior?.evidenceId || prior?.previousReviewId), dependencyType }
+          : { ...await inspectPackage(name, version, artifactKey, dependencyType, entry.resolved, entry.integrity), scanStatus: prior && prior.version !== version ? "changed" : "new" });
       } catch (error) {
-        packages.push({ name, version, packageManager: "npm", dependencyType: "dependencies", scanStatus: "unscanned", evidenceSource: "none", artifactKey: `npm:${name}@${version}`, fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
+        packages.push({ name, version, packageManager: "npm", dependencyType, scanStatus: "unscanned", evidenceSource: "none", artifactKey: `npm:${name}@${version}`, fileCount: 0, files: [], inspectedFiles: [], suspiciousLines: [], status: "Review", reason: error instanceof Error ? error.message : "Package retrieval failed." });
       }
     }
     onProgress?.([...packages]);
   }
-  if (deps.length && !packages.some(pkg => pkg.inspectedFiles.length)) throw new Error("No npm packages could be inspected. Check npm registry access and try again.");
+  if (targets.length && !packages.some(pkg => pkg.inspectedFiles.length || pkg.evidenceSource === "global-cache")) throw new Error("No npm packages could be inspected. Check npm registry access and try again.");
   return packages;
 }
 

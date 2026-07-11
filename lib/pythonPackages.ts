@@ -1,6 +1,6 @@
 import { gunzip, inflateRaw } from "node:zlib";
 import { promisify } from "node:util";
-import type { PackageCollectionContext, PackageEvidence, PackageFile, PackageProgress } from "./npmPackages";
+import type { PackageCollectionContext, PackageEvidence, PackageFile, PackageProgress } from "./npmPackages.ts";
 
 const unzip = promisify(gunzip);
 const inflate = promisify(inflateRaw);

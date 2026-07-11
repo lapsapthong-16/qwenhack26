@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { applyPackageFindings, collectNpmPackageEvidence, type PackageEvidence, type PackageFinding } from "./npmPackages";
-import { readPackageEvidence, savePackageEvidence } from "./packageEvidence";
-import { collectPythonPackageEvidence } from "./pythonPackages";
-import { readHistory } from "./reviewHistory";
+import { applyPackageFindings, collectNpmPackageEvidence, type PackageEvidence, type PackageFinding } from "./npmPackages.ts";
+import { readPackageEvidence, savePackageEvidence } from "./packageEvidence.ts";
+import { collectPythonPackageEvidence } from "./pythonPackages.ts";
+import { readHistory } from "./reviewHistory.ts";
 
 export const ROLES = ["Baseline", "Manifest", "Static", "Behavior", "Skeptic", "Judge"] as const;
 export type Role = (typeof ROLES)[number];
@@ -17,13 +17,23 @@ export type Finding = {
   packages?: PackageFinding[];
 };
 
-export type ReviewInput = { repoUrl?: string; branch?: string; files?: Record<string, string>; policy?: string };
+export type ReviewInput = {
+  repoUrl?: string;
+  branch?: string;
+  files?: Record<string, string>;
+  policy?: string;
+  source?: string;
+  projectIdentity?: string;
+  storageRoot?: string;
+  requireFullNpmCoverage?: boolean;
+};
 export type RepoInspection = { repoUrl: string; defaultBranch: string; branches: string[]; dependencyFiles: string[] };
 export type ReviewResult = {
   reviewId?: string;
   createdAt?: string;
   dependencyStateId: string;
   source: string;
+  projectIdentity?: string;
   repoUrl?: string;
   branch?: string;
   policy: string;
@@ -75,7 +85,7 @@ export async function inspectGitHubRepo(repoUrl: string): Promise<RepoInspection
 }
 
 export async function gatherEvidence(input: ReviewInput) {
-  if (input.files && Object.keys(input.files).length) return { source: "submitted-files", files: input.files };
+  if (input.files && Object.keys(input.files).length) return { source: input.source || "submitted-files", files: input.files };
   if (!input.repoUrl) throw new Error("Repository URL or dependency files are required");
   const coordinates = githubCoordinates(input.repoUrl);
   if (!coordinates) throw new Error("repoUrl must be a public GitHub repository URL");
@@ -91,9 +101,10 @@ export async function gatherEvidence(input: ReviewInput) {
   return { source: `${input.repoUrl}#${input.branch || "HEAD"}`, files };
 }
 
-export function dependencyStateId(source: string, files: Record<string, string>) {
+export function dependencyStateId(sourceOrFiles: string | Record<string, string>, maybeFiles?: Record<string, string>) {
+  const files = typeof sourceOrFiles === "string" ? maybeFiles : sourceOrFiles;
+  if (!files) throw new Error("Dependency files are required to compute a dependency state ID");
   const hash = createHash("sha256");
-  hash.update(source);
   for (const name of Object.keys(files).sort()) hash.update(`\n${name}\0${files[name]}`);
   return `state_${hash.digest("hex").slice(0, 24)}`;
 }
@@ -169,12 +180,19 @@ function baselineFinding(packages: PackageEvidence[], previousReview: { reviewId
   };
 }
 
+export function resolveFinalVerdict(judgeVerdict: Verdict, packages: PackageEvidence[], requiredFailure: boolean, requireFullNpmCoverage = false): Verdict {
+  const incompleteNpmCoverage = requireFullNpmCoverage && packages.some(pkg => pkg.packageManager === "npm" && pkg.scanStatus === "unscanned");
+  if ((requiredFailure || incompleteNpmCoverage) && judgeVerdict === "Allow") return packages.some(pkg => pkg.status === "Block") ? "Block" : "Review";
+  return judgeVerdict;
+}
+
 export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks = {}): Promise<ReviewResult> {
   const evidence = await gatherEvidence(input);
   const policy = input.policy || "strict";
-  const stateId = dependencyStateId(evidence.source, evidence.files);
+  const stateId = dependencyStateId(evidence.files);
   let packages: PackageEvidence[] = [];
-  const [packageEvidence, history] = await Promise.all([readPackageEvidence(), readHistory()]);
+  const storage = { rootDir: input.storageRoot };
+  const [packageEvidence, history] = await Promise.all([readPackageEvidence(storage), readHistory(storage)]);
   const previousReview = history.reviews.find(review => review.source === evidence.source || review.repoUrl === input.repoUrl);
   const previousReviewSummary = previousReview ? {
     reviewId: previousReview.reviewId,
@@ -182,14 +200,14 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
     verdict: previousReview.verdict,
     packages: previousReview.packages.map(pkg => ({ name: pkg.name, version: pkg.version, status: pkg.status, artifactKey: pkg.artifactKey })),
   } : null;
-  const collectionContext = { cached: packageEvidence.packages, previous: previousReview?.packages || [] };
+  const collectionContext = { cached: packageEvidence.packages, previous: previousReview?.packages || [], requireFullCoverage: input.requireFullNpmCoverage };
   hooks.onRoleStart?.("Baseline");
   for (const collect of [collectNpmPackageEvidence, collectPythonPackageEvidence]) {
     const next = await collect(evidence.files, partial => hooks.onPackages?.([...packages, ...partial]), collectionContext);
     packages = [...packages, ...next];
     hooks.onPackages?.(packages);
   }
-  await savePackageEvidence(packages);
+  await savePackageEvidence(packages, storage);
   const findings: Finding[] = [];
   const runRole = async (role: Role, prior = findings) => {
     hooks.onRoleStart?.(role);
@@ -215,9 +233,8 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
   const judge = findings.at(-1)!;
   packages = applyPackageFindings(packages, judge.packages);
   const requiredFailure = findings.some(finding => (["Manifest", "Static", "Behavior"] as Role[]).includes(finding.role) && finding.confidence === 0);
-  const finalVerdict: Verdict = requiredFailure && judge.verdict === "Allow"
-    ? packages.some(pkg => pkg.status === "Block") ? "Block" : "Review"
-    : judge.verdict;
+  const incompleteNpmCoverage = input.requireFullNpmCoverage && packages.some(pkg => pkg.packageManager === "npm" && pkg.scanStatus === "unscanned");
+  const finalVerdict = resolveFinalVerdict(judge.verdict, packages, requiredFailure, input.requireFullNpmCoverage);
   const packageCount = packages.length;
   const inspectedPackageCount = packages.filter(pkg => pkg.inspectedFiles.length).length;
   const packageSummary = packageCount
@@ -226,6 +243,7 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
   return {
     dependencyStateId: stateId,
     source: evidence.source,
+    projectIdentity: input.projectIdentity,
     repoUrl: input.repoUrl,
     branch: input.branch,
     policy,
@@ -238,6 +256,10 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
     packageSummary,
     findings,
     verdict: finalVerdict,
-    remediation: requiredFailure && judge.verdict === "Allow" ? "Review required because one or more required agents failed." : judge.summary,
+    remediation: requiredFailure && judge.verdict === "Allow"
+      ? "Review required because one or more required agents failed."
+      : incompleteNpmCoverage && judge.verdict === "Allow"
+        ? "Review required because one or more resolved npm artifacts could not be inspected."
+        : judge.summary,
   };
 }

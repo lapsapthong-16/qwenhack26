@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { reviewDependencies, ROLES, type Finding, type ReviewInput, type ReviewResult, type Role } from "./locksmith";
-import type { PackageEvidence } from "./npmPackages";
-import { saveReview } from "./reviewHistory";
+import { reviewDependencies, ROLES, type Finding, type ReviewInput, type ReviewResult, type Role } from "./locksmith.ts";
+import type { PackageEvidence } from "./npmPackages.ts";
+import { saveReview } from "./reviewHistory.ts";
 
 export type ReviewJob = {
   reviewId: string;
@@ -77,7 +77,10 @@ export function startReview(input: ReviewInput) {
       job.currentRole = undefined;
       job.currentRoles = [];
       touch(job);
-      await saveReview(savedResult);
+      void saveReview(savedResult).catch(error => {
+        // A completed analysis remains useful in the web UI even if local history is unavailable.
+        console.error("Locksmith could not persist review history:", error);
+      });
     } catch (error) {
       job.status = "failed";
       job.error = error instanceof Error ? error.message : "Review failed";

@@ -8,7 +8,7 @@ Primary hackathon track: **Track 3: Agent Society**
 
 ## Story Scenario
 
-A small team is preparing a release. A dependency update lands right before merge, and nobody wants to approve a lockfile or requirements file by gut feel. Locksmith lets the team paste a public GitHub repo or scan a local project, retrieves the dependency files, inspects real npm/PyPI package artifacts, and asks six Qwen agents to decide whether the state should be allowed, reviewed, or blocked.
+A small team is preparing a release. A dependency update lands right before merge, and nobody wants to approve a lockfile by gut feel. Locksmith lets the team paste a public GitHub repo for analysis or run a guarded npm install locally. It retrieves dependency files, inspects real package artifacts, and asks six Qwen agents to decide whether the candidate state should be allowed, reviewed, or blocked.
 
 ## Problem Statement
 
@@ -34,7 +34,7 @@ Implemented today:
 - Six real Qwen agent calls with structured verdicts, evidence, confidence, and remediation.
 - Review jobs with live package and agent progress.
 - Local review history stored in `.locksmith/reviews.json`.
-- Node CLI for scanning local dependency files with the same core engine.
+- Guarded npm install CLI using the same core engine, with a standalone HTML report for every fresh decision.
 
 ## Product Concept
 
@@ -44,10 +44,10 @@ Core surfaces:
 
 | Surface | Current state |
 | --- | --- |
-| Landing page | Explains the six-agent dependency review flow and links into scanning. |
+| Landing page | Explains the six-agent dependency review flow and guarded installs. |
 | `/review` page | Imports a public GitHub repo, chooses a branch, starts a Qwen review, shows package retrieval, agent progress, and final report. |
 | `/history` page | Reads local saved reviews and shows prior non-allow findings. |
-| CLI | Local demo command only: `node bin/locksmith.mjs scan [project-directory]` reviews local dependency files with the same core engine. Locksmith is not published on npm yet. |
+| CLI | `locksmith npm install ...` resolves and reviews a candidate lockfile before applying the exact approved state. Locksmith is not published on npm yet. |
 
 ## User Flow
 
@@ -55,7 +55,7 @@ Core surfaces:
 flowchart TD
   A["Developer"] --> B{"Choose surface"}
   B --> C["Web: paste public GitHub repo"]
-  B --> D["CLI: scan local project"]
+  B --> D["CLI: guarded npm install"]
   C --> E["Retrieve dependency files"]
   D --> E
   E --> F["Compute dependency state ID"]
@@ -155,18 +155,19 @@ Run the local tests:
 npm test
 ```
 
-Scan a local project with the CLI:
+Run a guarded npm installation from a supported npm project:
 
 ```bash
-node bin/locksmith.mjs scan .
+node bin/locksmith.mjs npm install colors@3.0.0
 ```
 
-Current CLI install status:
+CLI behavior:
 
-- The CLI is a local demo script in this repository.
-- It is not published to npm yet.
-- It does not currently install a global `locksmith` command.
-- The intended future flow is `locksmith npm install ...` or `locksmith pip install ...`, but those install-wrapper commands are not implemented yet.
+- The CLI resolves a candidate lockfile with lifecycle scripts disabled, then reviews it before changing the real project.
+- `Allow` installs the exact reviewed lockfile; `Review` and `Block` stop installation.
+- Fresh decisions save sanitized JSON history and `.locksmith/reports/<reviewId>.html`.
+- The MVP supports ordinary single-package npm projects with package-lock v2/v3. Workspaces, local/Git dependencies, global/prefix installs, and resolution-bypassing flags are rejected.
+- The CLI is local to this repository until it is published as an npm binary.
 
 Inspect a public GitHub repo through the API:
 
@@ -199,12 +200,13 @@ The review endpoint returns a `reviewId`. Poll `/api/review/{reviewId}` for pack
 │   ├── history/              # Saved review UI
 │   ├── review/               # Live review UI and final report
 │   └── page.tsx              # Landing page
-├── bin/locksmith.mjs         # Local CLI scanner
+├── bin/locksmith.mjs         # Guarded npm install CLI
 ├── lib/
 │   ├── locksmith.ts          # Core review engine and Qwen agent prompts
 │   ├── npmPackages.ts        # npm registry/tarball package evidence
 │   ├── pythonPackages.ts     # PyPI artifact package evidence
 │   ├── reviewHistory.ts      # Local JSON history
+│   ├── renderHtmlReport.ts   # Dependency-free CLI report renderer
 │   └── reviewJobs.ts         # In-memory async review jobs
 ├── test/
 │   └── python-packages.test.ts
@@ -226,7 +228,7 @@ Recommended demo flow:
 6. Show the six-agent progress timeline.
 7. Show the final verdict, evidence, remediation, model, and dependency state ID.
 8. Open `/history` to show the saved local review.
-9. Run `node bin/locksmith.mjs scan .` from the local repo to show the CLI using the same review engine.
+9. Run `node bin/locksmith.mjs npm install <package>` from a supported local npm project to show the guarded install flow and HTML artifact.
 
 ## Roadmap
 
@@ -243,7 +245,7 @@ Recommended demo flow:
 - Live review job polling.
 - Final verdict report.
 - Local review history.
-- Local Node CLI scan command.
+- Guarded local npm install command.
 - Basic tests for PyPI package retrieval and encoded requirements parsing.
 
 ### Current Limitations
@@ -257,8 +259,8 @@ Recommended demo flow:
 - PyPI wheel parsing is minimal and artifact selection is not platform-aware.
 - Behavior analysis is inferred from retrieved files; there is no sandbox execution yet.
 - Large package evidence can make later Qwen roles slow or stall.
-- The CLI is not published on npm and does not expose a global `locksmith` binary yet.
-- `locksmith npm install ...` and `locksmith pip install ...` are intended product flows, not implemented commands.
+- The CLI is not published on npm yet; use the repository script or `npm link` during local development.
+- Only guarded npm install is in scope. pip and raw scan commands are not MVP surfaces.
 - There is no workspace approval layer, policy editor, repo trust file writer, or CI integration yet.
 - There is no authentication, private GitHub import, or team account model.
 

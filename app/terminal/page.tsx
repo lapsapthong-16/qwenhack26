@@ -4,14 +4,14 @@ import "./terminal.css";
 
 export const metadata: Metadata = {
   title: "Terminal CLI — Locksmith",
-  description: "Current local demo CLI flow and future install wrapper direction for Locksmith.",
+  description: "Guarded npm installation through Locksmith's local CLI.",
 };
 
 const agents = [
   ["01", "BASELINE", "1 package changed: colors 2.0.0 → 3.0.0"],
   ["02", "MANIFEST", "New postinstall script found in colors@3.0.0"],
   ["03", "STATIC", "Reads process.env and opens an outbound connection"],
-  ["04", "BEHAVIOR", "Observed POST during isolated install"],
+  ["04", "BEHAVIOR", "Inferred POST during install from retrieved package files"],
   ["05", "SKEPTIC", "No documented network feature explains this behavior"],
   ["06", "JUDGE", "Evidence meets strict policy block threshold"],
 ] as const;
@@ -26,8 +26,8 @@ export default function TerminalPage() {
         </div>
         <div className="terminal-deck">
           <p>
-            Today the CLI runs as a local demo with Node. The intended product flow
-            is a real locksmith binary that wraps installs before they touch a lockfile.
+            Locksmith resolves a candidate lockfile, reviews it, and only installs the
+            exact approved state. A blocked package never reaches the real install.
           </p>
           <span className="demo-label">Local demo, not published on npm</span>
         </div>
@@ -38,12 +38,12 @@ export default function TerminalPage() {
           <div className="terminal-bar">
             <div className="window-controls" aria-hidden="true"><i /><i /><i /></div>
             <span>acme/storefront — zsh — 118×34</span>
-            <span className="terminal-secure">LOCAL DEMO</span>
+            <span className="terminal-secure">GUARDED INSTALL</span>
           </div>
 
           <div className="terminal-screen">
-            <p className="command"><span>~/locksmith</span> <b>$</b> node bin/locksmith.mjs scan ../storefront</p>
-            <p className="command muted-command"><span>future</span> <b>$</b> locksmith npm install colors@3.0.0</p>
+            <p className="command"><span>~/storefront</span> <b>$</b> locksmith npm install colors@3.0.0</p>
+            <p className="command muted-command"><span>locksmith</span> <b>$</b> resolving candidate lockfile with scripts disabled</p>
             <div className="scan-meta">
               <p><span>LOCKSMITH</span> dependency review / strict policy</p>
               <dl>
@@ -82,12 +82,12 @@ export default function TerminalPage() {
         <aside className="terminal-notes">
           <p className="eyebrow">What the terminal proves</p>
           <ol>
-            <li><span>01</span><p><strong>Current command</strong>Runs a local scan through <code>node bin/locksmith.mjs scan .</code>.</p></li>
-            <li><span>02</span><p><strong>Future wrapper</strong><code>locksmith npm install</code> and <code>locksmith pip install</code> are planned, not shipped.</p></li>
-            <li><span>03</span><p><strong>Same review engine</strong>Six agents inspect, challenge, and resolve the dependency state.</p></li>
+            <li><span>01</span><p><strong>Guarded command</strong><code>locksmith npm install</code> resolves a candidate lockfile before it changes your project.</p></li>
+            <li><span>02</span><p><strong>Decision gate</strong>Allow installs the reviewed lockfile; Review and Block stop npm before package scripts run.</p></li>
+            <li><span>03</span><p><strong>Same review engine</strong>Six agents inspect, challenge, and resolve the dependency state. Fresh decisions save a standalone HTML report.</p></li>
           </ol>
           <Link className="button secondary" href="/review">Open web review <span aria-hidden="true">→</span></Link>
-          <p className="prototype-note">This page is a static explanation. Use the local Node command in a real terminal.</p>
+          <p className="prototype-note">This page is a static explanation. The MVP supports ordinary single-package npm projects with package-lock v2 or v3.</p>
         </aside>
       </section>
     </main>
