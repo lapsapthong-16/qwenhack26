@@ -12,6 +12,14 @@ const MAX_FILE_BYTES = 20_000;
 type Entry = { path: string; content: Buffer };
 type Requirement = { name: string; version?: string };
 
+function isMarkdown(path: string) {
+  return /\.(md|mdx|markdown)$/i.test(path);
+}
+
+function displayedPath(path: string) {
+  return isMarkdown(path) ? `${path} (omitted)` : path;
+}
+
 function dependencyText(content = "") {
   return content.includes("\0") ? content.replaceAll("\0", "") : content;
 }
@@ -90,14 +98,14 @@ function requirements(files: Record<string, string>) {
 
 function selectFiles(entries: Entry[]): PackageFile[] {
   const selected = new Map<string, string>();
-  const add = (entry: Entry | undefined, reason: string) => { if (entry) selected.set(entry.path, reason); };
+  const add = (entry: Entry | undefined, reason: string) => { if (entry && !isMarkdown(entry.path)) selected.set(entry.path, reason); };
   add(entries.find(entry => /(^|\/)(PKG-INFO|METADATA)$/.test(entry.path)), "package metadata");
   add(entries.find(entry => /(^|\/)pyproject\.toml$/.test(entry.path)), "build manifest");
   add(entries.find(entry => /(^|\/)setup\.py$/.test(entry.path)), "setup script");
   add(entries.find(entry => /(^|\/)__init__\.py$/.test(entry.path)), "package entrypoint");
 
   const suspicious = /\beval\s*\(|\bexec\s*\(|subprocess|os\.environ|os\.system|socket\.|requests\.|urllib\.|httpx\.|pathlib\.Path\.home|\.ssh|\.pypirc|base64\.b64decode/;
-  for (const entry of entries.slice(0, MAX_SCAN_FILES)) {
+  for (const entry of entries.filter(entry => !isMarkdown(entry.path)).slice(0, MAX_SCAN_FILES)) {
     const content = text(entry.content);
     if (content && suspicious.test(content)) selected.set(entry.path, "suspicious static pattern");
   }
@@ -121,7 +129,7 @@ const suspiciousRules = [
 ] as const;
 
 export function findPythonSuspiciousLines(files: PackageFile[]) {
-  return files.flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
+  return files.filter(item => !isMarkdown(item.path)).flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
     return suspiciousRules
       .filter(([, pattern]) => pattern.test(line))
       .map(rule => ({ filePath: item.path, startLine: index + 1, severity: rule[3], sourceAgent: "Static" as const, reason: `Static Agent: ${rule[2]}.`, rule: rule[0] }));
@@ -142,7 +150,7 @@ async function inspectPackage(name: string, version: string): Promise<PackageEvi
   if (!artifactResponse.ok) throw new Error(`PyPI artifact failed (${artifactResponse.status})`);
   const body = Buffer.from(await artifactResponse.arrayBuffer());
   const entries = artifact.url.endsWith(".whl") ? await parseZip(body) : parseTar(await unzip(body));
-  const files = entries.map(entry => entry.path).sort();
+  const files = entries.map(entry => displayedPath(entry.path)).sort();
   const inspectedFiles = selectFiles(entries);
   const lines = findPythonSuspiciousLines(inspectedFiles);
   return {

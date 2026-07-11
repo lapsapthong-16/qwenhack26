@@ -160,7 +160,7 @@ function fixtureJob(): ReviewJob {
     evidenceSource: "fresh-scan" as const,
     artifactKey: "npm:fake-logger@1.3.0:sha512-fixture",
     fileCount: 4,
-    files: ["package/package.json", "package/scripts/postinstall.js", "package/index.js", "package/README.md"],
+    files: ["package/package.json", "package/scripts/postinstall.js", "package/index.js", "package/README.md (omitted)"],
     inspectedFiles: [{
       path: "package/scripts/postinstall.js",
       reason: "suspicious static pattern",

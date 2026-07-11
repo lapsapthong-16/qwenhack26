@@ -45,6 +45,14 @@ type TarEntry = { path: string; content: Buffer };
 export type PackageProgress = (packages: PackageEvidence[]) => void;
 export type PackageCollectionContext = { cached?: PackageEvidence[]; previous?: PackageEvidence[] };
 
+function isMarkdown(path: string) {
+  return /\.(md|mdx|markdown)$/i.test(path);
+}
+
+function displayedPath(path: string) {
+  return isMarkdown(path) ? `${path} (omitted)` : path;
+}
+
 function parseJson<T>(name: string, content?: string): T {
   if (!content) throw new Error(`${name} is required`);
   try {
@@ -134,7 +142,7 @@ function selectFiles(entries: TarEntry[]) {
     if (!path || typeof path !== "string") return;
     const clean = path.replace(/^\.\//, "");
     const full = byPath.has(clean) ? clean : `${root}${clean}`;
-    if (byPath.has(full)) selected.set(full, reason);
+    if (byPath.has(full) && !isMarkdown(full)) selected.set(full, reason);
   };
   add("package.json", "package manifest");
   add(pkg.main, "main entrypoint");
@@ -145,7 +153,7 @@ function selectFiles(entries: TarEntry[]) {
   for (const value of exports) add(value as string, "export entrypoint");
 
   const suspicious = /\beval\b|Function\s*\(|child_process|process\.env|\.npmrc|\bcurl\b|\bwget\b|https?:\/\/|fs\.readFile|fs\.writeFile|os\.homedir/;
-  for (const entry of entries.slice(0, MAX_SCAN_FILES)) {
+  for (const entry of entries.filter(entry => !isMarkdown(entry.path)).slice(0, MAX_SCAN_FILES)) {
     const content = text(entry.content);
     if (content && suspicious.test(content)) selected.set(entry.path, "suspicious static pattern");
   }
@@ -167,7 +175,7 @@ const suspiciousRules = [
 ] as const;
 
 export function findNpmSuspiciousLines(files: PackageFile[]): SuspiciousLine[] {
-  return files.flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
+  return files.filter(item => !isMarkdown(item.path)).flatMap(item => item.content.split(/\r?\n/).flatMap((line, index) => {
     return suspiciousRules
       .filter(([, pattern]) => pattern.test(line))
       .map(rule => ({ filePath: item.path, startLine: index + 1, severity: rule[3], sourceAgent: "Static" as const, reason: `Static Agent: ${rule[2]}.`, rule: rule[0] }));
@@ -187,7 +195,7 @@ async function inspectPackage(name: string, version: string, artifactKey?: strin
   const tarballResponse = await fetch(tarballUrl, { signal: AbortSignal.timeout(15_000) });
   if (!tarballResponse.ok) throw new Error(`npm tarball failed (${tarballResponse.status})`);
   const entries = parseTar(await unzip(Buffer.from(await tarballResponse.arrayBuffer())));
-  const files = entries.map(entry => entry.path).sort();
+  const files = entries.map(entry => displayedPath(entry.path)).sort();
   const inspectedFiles = selectFiles(entries);
   const lines = findNpmSuspiciousLines(inspectedFiles);
   return {

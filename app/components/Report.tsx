@@ -243,17 +243,24 @@ function versionText(pkg:PackageEvidence) {
 function CodeViewer({ file, findings }:{ file?:PackageFile; findings:SuspiciousLine[] }) {
   if (!file) return <div className="code-empty">Select an inspected file.</div>;
   const byLine = new Map<number,SuspiciousLine[]>();
+  const findingIndex = new Map<SuspiciousLine,number>();
+  const fileFindings = findings.filter(item => item.filePath === file.path);
+  fileFindings.forEach((finding, index) => findingIndex.set(finding, index + 1));
   for (const finding of findings.filter(item => item.filePath === file.path)) {
     for (let line = finding.startLine; line <= (finding.endLine || finding.startLine); line++) byLine.set(line, [...(byLine.get(line) || []), finding]);
   }
-  const fileFindings = findings.filter(item => item.filePath === file.path);
+  const rows = file.content.split(/\r?\n/).map((raw, index) => {
+    const match = raw.match(/^(\s*)(\d+):\s?(.*)$/);
+    return { displayLine: index + 1, sourceLine: match ? Number(match[2]) : index + 1, text: match ? `${match[1]}${match[3]}` : raw };
+  });
   return <div className="code-pane">
     <div className="code-meta"><strong>{file.path.replace(/^package\//, "")}</strong>{fileFindings.length ? <em>View suspicious code</em> : null}<button type="button">Raw</button>{file.contentTruncated ? <span>Truncated evidence</span> : <span>{file.reason}</span>}</div>
-    <pre>{file.content.split(/\r?\n/).map((line,index) => {
-      const number = index + 1;
-      const hits = byLine.get(number) || [];
-      return <code className={hits.length ? "code-line suspicious" : "code-line"} key={number}>
-        <span>{number}</span><mark title={hits.map(hit => hit.reason).join(" ")}>{line || " "}</mark>
+    <pre>{rows.map(row => {
+      const hits = byLine.get(row.sourceLine) || [];
+      return <code className={hits.length ? "code-line suspicious" : "code-line"} key={`${row.sourceLine}:${row.displayLine}`}>
+        <span className="code-hit">{hits.map(hit => <b key={`${hit.startLine}:${hit.rule}`}>{findingIndex.get(hit)}</b>)}</span>
+        <span className="code-number">{row.sourceLine}</span>
+        <mark title={hits.map(hit => hit.reason).join(" ")}>{row.text || " "}</mark>
       </code>;
     })}</pre>
     {fileFindings.length ? <ul className="line-reasons">{fileFindings.map((item, index) => <li key={`${item.filePath}:${item.startLine}:${item.rule}`}><b>{index + 1}</b> <span>{item.startLine}{item.endLine ? `-${item.endLine}` : ""}</span> {item.reason}</li>)}</ul> : null}
