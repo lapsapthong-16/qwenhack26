@@ -5,7 +5,8 @@ import type { Verdict } from "./locksmith.ts";
 
 const unzip = promisify(gunzip);
 const MAX_WEB_PACKAGES = 20;
-const MAX_GUARDED_PACKAGES = 100;
+// ponytail: keep the MVP's guarded CLI API spend bounded per project; batch scanning is deferred.
+const MAX_GUARDED_PACKAGES = 50;
 const MAX_SCAN_FILES = 40;
 const MAX_READ_FILES = 12;
 const MAX_FILE_BYTES = 20_000;
@@ -269,7 +270,7 @@ export async function collectNpmPackageEvidence(files: Record<string, string>, o
   const lock = parseJson<Record<string, any>>("package-lock.json", files["package-lock.json"]);
   const fromLock = lockedPackages(lock);
   if (context.requireFullCoverage && !fromLock.length) throw new Error("npm lockfile v2 or v3 with a packages map is required for complete install coverage.");
-  if (context.requireFullCoverage && fromLock.length > MAX_GUARDED_PACKAGES) throw new Error(`Resolved npm package count (${fromLock.length}) exceeds Locksmith's complete-coverage limit (${MAX_GUARDED_PACKAGES}).`);
+  if (context.requireFullCoverage && fromLock.length > MAX_GUARDED_PACKAGES) throw new Error(`Resolved npm package count (${fromLock.length}) exceeds the guarded CLI MVP limit of ${MAX_GUARDED_PACKAGES} packages per project (set to control API cost).`);
   const fallback = Object.keys(manifest.dependencies || {}).sort().map(name => {
     const entry = lock.packages?.[`node_modules/${name}`] || lock.dependencies?.[name] || {};
     return { name, version: typeof entry.version === "string" ? entry.version : "", entry, dependencyType: "npm:dependencies" };

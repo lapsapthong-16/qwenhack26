@@ -166,6 +166,7 @@ CLI behavior:
 - The CLI resolves a candidate lockfile with lifecycle scripts disabled, then reviews it before changing the real project.
 - `Allow` installs the exact reviewed lockfile; `Review` and `Block` stop installation.
 - Fresh decisions save sanitized JSON history and `.locksmith/reports/<reviewId>.html`.
+- The guarded CLI reviews at most 50 resolved packages per project in the MVP to control API cost; larger lockfiles stop before installation rather than receiving partial coverage.
 - The MVP supports ordinary single-package npm projects with package-lock v2/v3. Workspaces, local/Git dependencies, global/prefix installs, and resolution-bypassing flags are rejected.
 - The CLI is local to this repository until it is published as an npm binary.
 

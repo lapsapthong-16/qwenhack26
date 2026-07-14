@@ -3,4 +3,5 @@ node_modules/
 *.tsbuildinfo
 .locksmith/
 .env*
-!.env.example
+.agents/*
+public/ref

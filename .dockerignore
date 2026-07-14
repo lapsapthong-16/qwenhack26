@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.locksmith
+.env*
+*.tsbuildinfo
+AGENTS.md
+POD.md
+PLAN.md

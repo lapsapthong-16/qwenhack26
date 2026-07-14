@@ -10,6 +10,10 @@ The proof needs to show that the backend is running on Alibaba Cloud and that th
 
 Use **Alibaba Cloud ECS** for the MVP.
 
+The repository now includes a production Docker image. ECS is still the recommended
+target because the current review job and `.locksmith/` storage are intentionally
+process-local; use one persistent ECS instance for the hackathon deployment.
+
 ECS is the smallest reliable deployment for the current codebase because Locksmith is a Next.js app with Node.js API routes, local `.locksmith/` review/cache files, and in-memory review jobs. Those assumptions fit a persistent VM without changing the app.
 
 ## Services Used
@@ -96,6 +100,37 @@ Suggested MVP settings:
   - allow `3000` from `0.0.0.0/0` only if skipping Nginx
 
 ## Deployment Steps
+
+### Docker deployment (recommended)
+
+On the ECS instance, install Docker, clone the public repository, and run:
+
+```bash
+git clone <public-repository-url> /opt/locksmith
+cd /opt/locksmith
+cp .env.example .env
+nano .env  # set QWEN_API_KEY; never commit this file
+docker build -t locksmith:latest .
+docker rm -f locksmith 2>/dev/null || true
+docker volume create locksmith-data >/dev/null
+docker run -d --name locksmith --restart unless-stopped \
+  --env-file .env \
+  -p 3000:3000 \
+  -v locksmith-data:/app/.locksmith \
+  locksmith:latest
+curl http://127.0.0.1:3000/api/health
+```
+
+The public app is then available at `http://<ecs-public-ip>:3000` after opening
+TCP port 3000 in the ECS security group. The volume preserves review history and
+package evidence across container restarts.
+
+The MVP is designed for one persistent ECS instance. Review jobs are held in
+process memory while running, so do not place multiple app replicas behind a
+load balancer until job state is moved to a shared store such as Redis or OSS.
+
+For a production-looking URL, put Nginx or an Alibaba Cloud Server Load Balancer
+in front of port 3000 and expose only ports 80/443 publicly.
 
 SSH into the ECS instance:
 
