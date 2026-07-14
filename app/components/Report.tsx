@@ -69,7 +69,7 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
 
   return <section className="review-shell" aria-live="polite">
     <header className="report-header">
-      <h1><img src="/assets/12_locksmith_logo.png" alt="" />Report</h1>
+      <h1><Link className="report-back" href="/history" aria-label="Back to history" title="Back to history">←</Link><span className="report-title">Report</span></h1>
       <div className="report-meta-table">
         <Meta label="Repository" value={shortSource(result.source)} />
         <Meta label="Branch" value={result.branch || "main"} />
@@ -77,8 +77,8 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
         <Meta label="Review ID" value={result.reviewId} />
         <Meta label="Package Manager" value={result.packageManager || packages[0]?.packageManager || "npm"} />
         <Meta label="Files Used" value={result.files.join(", ") || "unknown"} wide />
+        <Meta label="Reviewed At" value={formatDate(result.createdAt)} />
       </div>
-      <div className="report-actions"><time>{formatDate(result.createdAt)}</time><button type="button">Download Report</button></div>
     </header>
 
     <section className="repo-agents">
@@ -113,7 +113,7 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
       <section className="package-inspection" aria-label="Package inspection">
         {selectedPackage ? <>
           <header>
-            <div><h2>▢ {selectedPackage.name}@{selectedPackage.version}</h2><p><strong>Reason</strong><br />{selectedPackage.reason}</p></div>
+            <div><h2><RegistryLogo packageManager={registryFor(selectedPackage, result)} />{selectedPackage.name}@{selectedPackage.version}</h2><p><strong>Reason</strong><br />{selectedPackage.reason}</p></div>
             <span className={`verdict-pill verdict-${selectedPackage.status.toLowerCase()}`}>{uiVerdict(selectedPackage.status)}</span>
           </header>
           <GlobalAnalysis pkg={selectedPackage} />
@@ -129,7 +129,6 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
           return <AgentFinding role={role} finding={finding} state={state} pkg={selectedPackage} key={role} />;
         })}
         {selectedPackage ? <div className={`package-verdict status-${selectedPackage.status.toLowerCase()}`}><strong>Package Verdict<br /><span>{uiVerdict(selectedPackage.status)}</span></strong><p>{selectedPackage.status === "Block" ? "Critical concerns remain. Risk: High." : selectedPackage.reason}</p></div> : null}
-        <Link className="history-link" href="/history">View history</Link>
       </aside>
     </section>
   </section>;
@@ -145,6 +144,15 @@ export function label(value:string) {
 
 function Meta({ label, value, wide }:{ label:string; value:string; wide?:boolean }) {
   return <div className={wide ? "meta-item wide" : "meta-item"}><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function registryFor(pkg:PackageEvidence, result:ReviewResult): "npm" | "pypi" {
+  const packageManager = `${pkg.packageManager || ""} ${result.packageManager || ""}`.toLowerCase();
+  return packageManager.includes("pypi") || packageManager.includes("python") ? "pypi" : "npm";
+}
+
+function RegistryLogo({ packageManager }:{ packageManager:"npm" | "pypi" }) {
+  return <img className="registry-logo" src={`/assets/${packageManager}-logo.png`} alt={`${packageManager === "pypi" ? "PyPI" : "npm"} package`} />;
 }
 
 function Badge({ label, count, tone }:{ label:string; count:number; tone:"allow"|"review"|"block" }) {

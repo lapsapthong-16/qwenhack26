@@ -27,7 +27,6 @@ export default function HistoryPage() {
   }, []);
 
   if (selected) return <main className="history-page">
-    <button className="history-back" type="button" onClick={() => setSelected(null)}>Back to history</button>
     <Report result={selected} job={{
       status: "complete",
       completedRoles: selected.findings.map((finding:Finding) => finding.role),
