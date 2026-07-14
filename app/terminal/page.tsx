@@ -26,8 +26,9 @@ export default function TerminalPage() {
         </div>
         <div className="terminal-deck">
           <p>
-            Locksmith resolves a candidate lockfile, reviews it, and only installs the
-            exact approved state. A blocked package never reaches the real install.
+            Locksmith resolves a candidate lockfile, reviews it with the same six-agent
+            engine as the web app, and only runs the install when the result is Allow.
+            Review and Block stop before package code runs.
           </p>
           <span className="demo-label">Local demo, not published on npm</span>
         </div>
@@ -87,7 +88,7 @@ export default function TerminalPage() {
             <li><span>03</span><p><strong>Same review engine</strong>Six agents inspect, challenge, and resolve the dependency state. Fresh decisions save a standalone HTML report.</p></li>
           </ol>
           <Link className="button secondary" href="/review">Open web review <span aria-hidden="true">→</span></Link>
-          <p className="prototype-note">This page is a static explanation. The MVP supports ordinary single-package npm projects with package-lock v2 or v3.</p>
+          <p className="prototype-note">The CLI currently supports ordinary single-package npm projects with package-lock v2 or v3. Web review also supports public GitHub npm and PyPI dependency files.</p>
         </aside>
       </section>
     </main>

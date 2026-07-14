@@ -17,7 +17,7 @@ export default function Header() {
         Locksmith
       </Link>
       <nav aria-label="Primary">
-        {nav.map(([href, label]) => <Link className={pathname === href || (pathname === "/" && href === "/review") ? "active" : ""} href={href} key={href}>{label}</Link>)}
+        {nav.map(([href, label]) => <Link className={pathname === href ? "active" : ""} href={href} key={href}>{label}</Link>)}
       </nav>
     </header>
   );

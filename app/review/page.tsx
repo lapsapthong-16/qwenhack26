@@ -28,6 +28,7 @@ export default function ReviewPage() {
   const autoStarted = useRef(false);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     const params = new URLSearchParams(window.location.search);
     if (params.get("fixture") === "1") {
       setRepo("fixture://locksmith-redesign");

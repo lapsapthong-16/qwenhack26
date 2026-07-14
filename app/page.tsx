@@ -60,7 +60,6 @@ export default function Home() {
           height={336}
           alt="Dependency files connected to a fingerprint dependency state identifier"
         />
-        <Link className="state-link text-link red" href="/how-to">How the state ID works <span aria-hidden="true">→</span></Link>
       </section>
 
       <section className="panel-section" id="panel" aria-labelledby="panel-title">
@@ -122,7 +121,7 @@ export default function Home() {
         <div className="evidence-copy">
           <h2 id="evidence-title">The skeptic keeps<br />blocks honest.</h2>
           <p>Findings must survive challenge before Judge acts.</p>
-          <Link className="text-link red" href="/review">Read a resolved verdict <span aria-hidden="true">→</span></Link>
+          <Link className="text-link red" href="/history">Read a resolved verdict <span aria-hidden="true">→</span></Link>
         </div>
         <div className="quote-stack">
           <article className="quote-static"><span>⚐</span><q>Static flags env access.</q><b>STATIC</b></article>
