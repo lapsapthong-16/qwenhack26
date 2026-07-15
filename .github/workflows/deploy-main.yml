@@ -1,1 +1,63 @@
+name: Deploy main to Alibaba ECS
 
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy newest main revision
+        env:
+          ECS_HOST: ${{ secrets.ECS_HOST }}
+          ECS_USER: ${{ secrets.ECS_USER }}
+          ECS_SSH_KEY: ${{ secrets.ECS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$ECS_HOST"
+          test -n "$ECS_USER"
+          test -n "$ECS_SSH_KEY"
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$ECS_SSH_KEY" > "$HOME/.ssh/locksmith_ecs"
+          chmod 600 "$HOME/.ssh/locksmith_ecs"
+          ssh-keyscan -H "$ECS_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+
+          ssh -i "$HOME/.ssh/locksmith_ecs" -o BatchMode=yes -o ConnectTimeout=15 \
+            "$ECS_USER@$ECS_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/locksmith
+          git fetch --prune origin main
+          git clean -fd
+          git checkout -B main origin/main
+          git reset --hard origin/main
+          npm ci
+          npm run build
+          sudo systemctl restart locksmith.service
+          sudo systemctl is-active --quiet locksmith.service
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1/api/health; then
+              echo
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Health check failed after 60 seconds" >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          test "$(curl --fail --silent --show-error --max-time 15 http://127.0.0.1/api/health)" = '{"ok":true,"service":"locksmith"}'
+          deployed="$(git rev-parse HEAD)"
+          expected="$(git rev-parse origin/main)"
+          test "$deployed" = "$expected"
+          echo "deployed_revision=$deployed"
+          echo "service=active"
+          echo "health=ok"
+          REMOTE
