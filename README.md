@@ -49,6 +49,7 @@ Core surfaces:
 | `/history` page | Reads local saved reviews and shows prior non-allow findings. |
 | CLI | `locksmith npm install ...` resolves and reviews a candidate lockfile before applying the exact approved state. Locksmith is not published on npm yet. |
 
+The deployed demo runs on Alibaba Cloud ECS: [http://47.84.96.197](http://47.84.96.197).
 ## User Flow
 
 ```mermaid
@@ -104,7 +105,7 @@ flowchart LR
 | External data | GitHub REST/raw files, npm registry, npm tarballs, PyPI JSON API, PyPI sdists/wheels |
 | Storage | Local JSON file at `.locksmith/reviews.json` |
 | CLI | Node.js executable script in `bin/locksmith.mjs` |
-| Tests | Node's built-in test runner |
+| Deployment | Alibaba Cloud ECS, Docker or standalone Next.js output |
 
 ## Smart Contracts
 
@@ -133,7 +134,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `QWEN_MODEL` | Required. Model name sent to the Qwen API. `.env.example` uses `qwen3.5-flash`. |
 | `QWEN_BASE_URL` | Optional OpenAI-compatible endpoint. Defaults to `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`. |
 
-There is no mock mode in the current app. Reviews fail fast when `QWEN_API_KEY` or `QWEN_MODEL` is missing.
+There is no mock mode in the current app. Reviews fail fast when `QWEN_API_KEY` or `QWEN_MODEL` is missing. The deployed instance keeps these values server-side; do not commit them.
 
 ## Running Locally
 
@@ -149,11 +150,6 @@ Build the app:
 npm run build
 ```
 
-Run the local tests:
-
-```bash
-npm test
-```
 
 Run a guarded npm installation from a supported npm project:
 
@@ -209,15 +205,17 @@ The review endpoint returns a `reviewId`. Poll `/api/review/{reviewId}` for pack
 │   ├── reviewHistory.ts      # Local JSON history
 │   ├── renderHtmlReport.ts   # Dependency-free CLI report renderer
 │   └── reviewJobs.ts         # In-memory async review jobs
-├── test/
-│   └── python-packages.test.ts
+├── public/assets/            # Product and workflow illustrations
+├── Dockerfile                # Standalone production image
+├── ALIBABA.md                # Current ECS deployment record and proof notes
+├── CLOUD.md                  # ECS deployment runbook
 ├── SUBMISSION.md             # Hackathon submission requirements
 └── README.md
 ```
 
 ## Demo / Screenshots
 
-Demo assets are still needed.
+The repository includes product and workflow assets under [`public/assets`](public/assets). The live demo is available at [http://47.84.96.197](http://47.84.96.197).
 
 Recommended demo flow:
 
@@ -247,7 +245,7 @@ Recommended demo flow:
 - Final verdict report.
 - Local review history.
 - Guarded local npm install command.
-- Basic tests for PyPI package retrieval and encoded requirements parsing.
+- Build and deployment smoke checks; automated test coverage is still to be expanded.
 
 ### Current Limitations
 
@@ -273,9 +271,9 @@ This section maps the remaining work to `SUBMISSION.md`.
 | --- | --- |
 | Public code repository URL | Not finalized in this README. Add the final public GitHub URL before submission. |
 | Open source license | Completed: `LICENSE` exists at the repository root. |
-| Proof of Alibaba Cloud deployment | Not completed. The app uses Qwen through Alibaba Cloud Model Studio, but the backend has not been deployed to Alibaba Cloud yet. |
-| Code file demonstrating Alibaba Cloud services/APIs | Partially completed through `lib/locksmith.ts`, which calls the Qwen OpenAI-compatible API. A deployment/proof file or recording link is still needed for submission. |
-| Architecture diagram | Completed for the local/current system in this README. Update it after Alibaba Cloud deployment exists. |
+| Proof of Alibaba Cloud deployment | Completed for the current ECS deployment; see [`ALIBABA.md`](ALIBABA.md) for instance, endpoint, and verification notes. |
+| Code file demonstrating Alibaba Cloud services/APIs | Completed through [`lib/locksmith.ts`](lib/locksmith.ts), which calls Qwen Model Studio's OpenAI-compatible API. |
+| Architecture diagram | Completed for the current web app, review engine, external package registries, Qwen agents, and local persistent storage. |
 | About 3-minute public demo video | Not completed. Needs a public YouTube, Vimeo, or Facebook Video link. |
 | Text description of features/functionality | Completed in this README. |
 | Track identification | Completed: Track 3 Agent Society. |
@@ -285,4 +283,5 @@ This section maps the remaining work to `SUBMISSION.md`.
 
 - Public scans do not equal owner or team approval.
 - Local history is useful for the demo, but it is not a team source of truth.
-- Locksmith currently assumes local storage and local review jobs until the Alibaba Cloud backend/deployment work is completed.
+- The deployed ECS instance is a single-node MVP. Review jobs remain in process memory, while review history and package evidence use persistent local `.locksmith/` storage.
+- See [`ALIBABA.md`](ALIBABA.md) for the current public deployment record and [`CLOUD.md`](CLOUD.md) for the deployment runbook.

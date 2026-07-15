@@ -8,6 +8,7 @@ export default function Header() {
   const nav = [
     ["/review", "Review"],
     ["/history", "History"],
+    ["/docs", "Docs"],
   ] as const;
 
   return (
