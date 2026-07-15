@@ -28,17 +28,17 @@ Inspect the current repository before writing. Do not produce a generic README f
    - Frontend/backend/on-chain/data flow
    - Run commands and required environment
 4. Decide diagram flow:
-   - In **New mode**, create fresh User Flow and System Architecture Mermaid diagrams.
+   - In **New mode**, create one **Combined Product Flow Architecture Diagram** in Mermaid.
    - In **Update mode**, inspect the existing README for Mermaid diagrams, ASCII diagrams, image links, or external diagram links before creating anything new.
    - Prefer Mermaid directly in the README because GitHub renders it without generated image files or paid services.
-   - For System Architecture Flow, follow the System Architecture Mermaid workflow below.
+   - For the Combined Product Flow Architecture Diagram, follow the workflow below.
 5. Ask only when important facts cannot be inferred safely:
    - Target user or story scenario is unclear
    - Smart contract network/address is missing or ambiguous
    - Setup commands cannot be inferred
    - Product name conflicts across files
    - Architecture stack has uncertain or possibly unused services, databases, frameworks, models, chains, APIs, wallets, or tools
-   - Architecture diagram generation or replacement is needed; always confirm detected architecture components first
+   - Architecture diagram generation or replacement is needed; confirm detected architecture components first unless an accurate existing Combined Product Flow Architecture Diagram is being preserved
 6. Write or update `README.md`.
 7. Re-read the final README for broken structure, false claims, missing required sections, commands that do not match the repo, and the System Architecture completion checks below.
 
@@ -57,7 +57,7 @@ Good questions:
 - Are there required environment variables not shown in `.env.example`?
 - I found these architecture parts: `...`. Which are actually used in the demo, and which should be left out?
 
-If the user does not answer, proceed with `TBD` for ordinary unknown values and state what was inferred from the repo. For architecture diagram confirmation, pause before final README completion unless an accurate existing System Architecture Mermaid diagram is being preserved.
+If the user does not answer, proceed with `TBD` for ordinary unknown values and state what was inferred from the repo. For architecture confirmation, pause before final README completion unless an accurate existing Combined Product Flow Architecture Diagram is being preserved.
 
 ## Required README Sections
 
@@ -73,8 +73,6 @@ Use these sections unless the user asks for a different order. Keep headings cle
 ## Solution
 
 ## Product Concept
-
-## User Flow
 
 ## System Architecture Flow
 
@@ -121,60 +119,25 @@ Describe the product as a buildable system:
 - Primary user
 - What makes the approach distinct
 
-### User Flow
+### Combined Product Flow Architecture Diagram
 
-Always include a user flow diagram. Prefer Mermaid directly in the README. Use ASCII only as a fallback.
+Always include one **Combined Product Flow Architecture Diagram** based on the actual repo. Do not create a separate User Flow section or a PNG/JPG architecture image.
 
-Mermaid example:
-
-```mermaid
-flowchart TD
-  A[User] --> B[Landing / Dashboard]
-  B --> C[Connect Wallet / Sign In]
-  C --> D[Create or Select Action]
-  D --> E[Review Result]
-  E --> F[Confirm / Share / Track]
-```
-
-ASCII fallback example:
-
-```text
-User
-  |
-  v
-Landing / Dashboard
-  |
-  v
-Connect Wallet / Sign In
-  |
-  v
-Create or Select Action
-  |
-  v
-Review Result
-  |
-  v
-Confirm / Share / Track
-```
-
-### System Architecture Flow
-
-Always include a System Architecture Mermaid diagram based on the actual repo. Do not generate PNG/JPG architecture images.
-
-In update mode, first check whether the README already has a System Architecture Mermaid diagram. Preserve it when its major nodes match the detected frontend, backend, database, AI model, chain, wallet, storage, and external services. If the README has a System Architecture image, ASCII diagram, or external diagram link, use it only as draft input, then replace it with Mermaid after the user confirms the architecture.
+In update mode, first check whether the README already has a Combined Product Flow Architecture Diagram in Mermaid. Preserve it when its major nodes match the detected frontend, backend, database, AI model, chain, wallet, storage, and external services. If the README has a separate user-flow diagram, System Architecture image, ASCII diagram, or external diagram link, use it only as draft input, then replace it with the combined Mermaid diagram after the user confirms the architecture.
 
 Use Canva-style architecture logic in Mermaid: clear nouns, simple actions, generous spacing, and few arrows. The diagram should read like a human-made hackathon slide, not like an exhaustive infrastructure map.
 
 Reference images live in `references/architecture-diagrams/`. Before drafting, inspect all reference images for layout density, arrow style, and label simplicity. Reuse only style traits, not project content.
 
-When no accurate existing System Architecture Mermaid diagram is being preserved:
+When no accurate existing Combined Product Flow Architecture Diagram is being preserved:
 1. Inspect the codebase for actual frontend, backend, database, AI model, wallet, chain, API, storage, worker, and deployment components.
-2. Ask the user to confirm which detected components are used and which are unused or should be hidden.
-3. Draft a rough ASCII layout with only the nodes and arrows that will appear in Mermaid.
-4. Write the Mermaid diagram only after the user confirms the draft.
+2. Ask the user to confirm which detected components are used and which are unused or should be hidden. Confirmation is complete only when the included/hidden components and the rough ASCII draft are approved.
+3. Draft a rough ASCII layout that combines the user's journey with the system components and arrows that will appear in Mermaid. The user-facing path must show `User → entry point → primary action → system processing → result or decision`.
+4. Write the Combined Product Flow Architecture Diagram only after the user confirms the draft.
 
 Mermaid architecture rules:
-- Include `User` and the project name as visible nodes.
+- Include `User` and the project name as visible nodes; make the user-facing path visible through the same diagram.
+- Show the minimum user-facing path: `User → entry point → primary action → system processing → result or decision`.
 - Use 5-9 main nodes unless the user asks for more detail.
 - Use short noun labels: `User`, `Web App`, `API`, `Database`, `Qwen`, `Wallet`, `Contract`.
 - Use short action labels: `scan`, `send`, `store`, `review`, `approve`, `call`, `read`, `write`.
@@ -207,25 +170,23 @@ Frontend App
 ### Diagram Update Rules
 
 For a new README:
-- Create a Mermaid User Flow diagram.
-- Follow the System Architecture Flow section for the architecture Mermaid diagram.
+- Create one Combined Product Flow Architecture Diagram under `## System Architecture Flow`.
 - Keep node labels short and readable.
 - Use left-to-right or top-down direction consistently.
 
 For an existing README:
 - First check whether the README already has Mermaid diagrams, ASCII diagrams, image links, or external diagram links.
-- For System Architecture, defer to the System Architecture Flow section as the single source of truth.
-- If existing User Flow Mermaid diagrams are present, update those diagrams instead of adding duplicates.
-- If existing User Flow ASCII diagrams are present, replace them with Mermaid when the flow is clear.
-- Do not delete old diagrams unless they are clearly obsolete or replaced by a better current diagram.
-- Do not create duplicate diagrams on repeated README updates.
+- For architecture and user flow, defer to the Combined Product Flow Architecture Diagram under `## System Architecture Flow` as the single source of truth.
+- If existing separate User Flow diagrams are present, merge their user-facing steps into the Combined Product Flow Architecture Diagram and delete the redundant diagrams.
+- Do not create additional user-flow or architecture diagrams elsewhere in the README.
 
 ### System Architecture Completion Checks
 
 Before finishing:
-- `## System Architecture Flow` contains a Mermaid diagram, not an image link.
-- The Mermaid diagram's major nodes match the detected architecture.
-- The Mermaid diagram uses short noun labels and short action labels.
+- `## System Architecture Flow` contains exactly one Combined Product Flow Architecture Diagram in Mermaid, not an image link.
+- The README contains no separate user-flow or architecture diagram elsewhere.
+- Every included frontend, backend, database, AI, wallet, chain, storage, worker, deployment, or external-service node is detected in the repository or explicitly confirmed by the user.
+- The Mermaid diagram uses no more than 9 main nodes; ordinary node labels contain no more than 3 words (the required project-name node is exempt); edge labels contain one short action verb.
 - If architecture confirmation is missing and no accurate Mermaid diagram can be preserved, stop and ask for confirmation instead of writing a final README.
 
 ### Tech Stack
@@ -299,9 +260,11 @@ Add screenshots or a demo link here after deployment.
 - Write like a polished hackathon/product README.
 - Be concrete and repo-specific.
 - Prefer short paragraphs and tables.
-- Use emojis sparingly when they improve scanning or make the README feel less dry, such as in section headings, feature bullets, status notes, or demo callouts.
-- Do not force emojis into every heading or bullet. Avoid repeated emoji patterns, decorative clutter, or emojis in technical commands, code blocks, addresses, environment variable names, tables where they reduce clarity, or legal/security notes.
-- Prefer one useful emoji per relevant heading or bullet group when it helps the reader quickly recognize the section's purpose.
+- Use emojis as restrained visual signposts so the README is easier to scan and digest while remaining serious, technical, and professional.
+- Prefer one context-appropriate emoji in major reader-facing headings or callouts, such as `🚀` for getting started, `🧭` for the product journey, `🏗️` for architecture, `🛠️` for the tech stack, `🔐` for security, `✅` for verified behavior, and `⚠️` for limitations or risks.
+- Choose emojis for meaning, not decoration. Keep the emoji vocabulary consistent across the README, and omit an emoji when no clear semantic match exists.
+- Do not put emojis in technical commands, code blocks, addresses, environment variable names, API names, Mermaid node labels, tables where they reduce clarity, or legal/security disclaimers.
+- Avoid emoji chains, repeated patterns, slang, meme language, exaggerated hype, and “brainrot” styling. The README should still read naturally if the emojis are removed.
 - Avoid hype that the code does not support.
 - Avoid long architecture essays.
 - Preserve useful existing README content in update mode.

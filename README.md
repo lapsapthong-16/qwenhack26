@@ -6,11 +6,11 @@ Locksmith is a Qwen-powered dependency safety reviewer for developers and small 
 
 Primary hackathon track: **Track 3: Agent Society**
 
-## Story Scenario
+## 🧭 Story Scenario
 
 A small team is preparing a release. A dependency update lands right before merge, and nobody wants to approve a lockfile by gut feel. Locksmith lets the team paste a public GitHub repo for analysis or run a guarded npm install locally. It retrieves dependency files, inspects real package artifacts, and asks six Qwen agents to decide whether the candidate state should be allowed, reviewed, or blocked.
 
-## Problem Statement
+## ⚠️ Problem Statement
 
 Package managers make it easy to install code the team has not reviewed. A package update can add lifecycle scripts, build hooks, transitive dependencies, network behavior, local file access, or source patterns that are risky for one repo but normal in another.
 
@@ -18,73 +18,40 @@ Most scanners answer, "Is this package suspicious?" Locksmith is aimed at the mo
 
 > Is this exact dependency state safe for this repo, under this review policy, with the evidence we retrieved?
 
-## Solution
+## ✅ Solution
 
-Locksmith retrieves dependency files, computes a stable dependency state ID, fetches real package code from npm and PyPI, runs six role-specific Qwen agents, and saves completed reviews locally.
+Locksmith retrieves dependency files, computes a deterministic dependency-file fingerprint, fetches real package code from npm and PyPI, runs six role-specific Qwen agents, and saves completed reviews locally.
 
-Implemented today:
+### ✨ Features
 
-- Public GitHub repo lookup and branch selection.
-- Dependency file detection for `package.json`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `requirements.txt`, and `pyproject.toml`.
-- npm direct dependency inspection from `package.json` plus exact versions from `package-lock.json`.
-- PyPI dependency inspection from pinned `requirements.txt` and simple `pyproject.toml` dependency strings.
-- npm tarball retrieval and selected internal file inspection.
-- PyPI sdist/wheel artifact retrieval and selected internal file inspection.
-- Static package evidence selection for metadata, manifests, entrypoints, lifecycle/build files, and suspicious source patterns.
-- Six real Qwen agent calls with structured verdicts, evidence, confidence, and remediation.
-- Review jobs with live package and agent progress.
-- Local review history stored in `.locksmith/reviews.json`.
-- Guarded npm install CLI using the same core engine, with a standalone HTML report for every fresh decision.
+- **Repo review in seconds** — Paste a public GitHub repository and Locksmith finds the dependency files that matter.
+- **Six-agent security panel** — Baseline, Manifest, Static, Behavior, Skeptic, and Judge agents divide the work, challenge weak evidence, and resolve a final verdict.
+- **Real package evidence** — Inspect npm and PyPI metadata, tarballs, manifests, lifecycle hooks, entrypoints, and selected source files instead of relying on package reputation alone.
+- **Clear decisions** — Every review ends with an actionable `Allow`, `Review`, or `Block` outcome plus evidence, confidence, and remediation.
+- **Guarded npm installs** — Review a candidate lockfile before installation; suspicious or incomplete results stop the install before it changes the project.
+- **Live review progress** — Watch package retrieval and each specialist agent move from queued to completed in the review workspace.
+- **Local review history** — Reopen completed decisions and inspect the dependency state ID, findings, evidence, and generated HTML report.
 
-## Product Concept
+### 🎯 Why It Matters
 
-Locksmith is a Web2-first supply-chain review tool. It is not a wallet, token, staking, or on-chain audit product.
+Locksmith is built for the moment before a dependency enters a project. It turns a risky package update from a rushed approval into an evidence-backed decision that a developer can explain to the rest of the team.
 
-Core surfaces:
-
-| Surface | Current state |
-| --- | --- |
-| Landing page | Explains the six-agent dependency review flow and guarded installs. |
-| `/review` page | Imports a public GitHub repo, chooses a branch, starts a Qwen review, shows package retrieval, agent progress, and final report. |
-| `/history` page | Reads local saved reviews and shows prior non-allow findings. |
-| CLI | `locksmith npm install ...` resolves and reviews a candidate lockfile before applying the exact approved state. Locksmith is not published on npm yet. |
-
-The deployed demo runs on Alibaba Cloud ECS: [http://47.84.96.197](http://47.84.96.197).
-## User Flow
-
-```mermaid
-flowchart TD
-  A["Developer"] --> B{"Choose surface"}
-  B --> C["Web: paste public GitHub repo"]
-  B --> D["CLI: guarded npm install"]
-  C --> E["Retrieve dependency files"]
-  D --> E
-  E --> F["Compute dependency state ID"]
-  F --> G["Resolve direct npm and PyPI packages"]
-  G --> H["Fetch package artifacts"]
-  H --> I["Select internal files for evidence"]
-  I --> J["Run six Qwen agents"]
-  J --> K["Judge returns Allow / Review / Block"]
-  K --> L["Save completed review locally"]
-  L --> M["View review history"]
-```
-
-## System Architecture Flow
+## 🏗️ System Architecture Flow
 
 ```mermaid
 flowchart LR
-  U[User] -->|provide repo| L[Locksmith]
-  L -->|retrieve| G[GitHub]
-  G -->|send files| E[Review Engine]
-  E -->|fetch| N[npm]
-  E -->|fetch| P[PyPI]
-  E -->|review| Q[Qwen Agents]
-  N -->|evidence| Q
-  P -->|evidence| Q
-  Q -->|store| S[Local JSON]
+  U[Developer] -->|choose| S[Web App / CLI]
+  S -->|inspect| G[GitHub]
+  G -->|provide| R[Locksmith Review Engine]
+  S -->|start| R
+  R -->|fetch| P[npm / PyPI]
+  P -->|supply| R
+  R -->|review| Q[Six Qwen Agents]
+  Q -->|issue| V[Allow / Review / Block]
+  V -->|save| H[History]
 ```
 
-## Six-Agent Review Panel
+## 🤖 Six-Agent Review Panel
 
 | Agent | Implemented role |
 | --- | --- |
@@ -95,23 +62,33 @@ flowchart LR
 | Skeptic | Challenges unsupported claims and filters false positives before final judgment. |
 | Judge | Resolves the prior findings into `Allow`, `Review`, or `Block` with the smallest remediation. |
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 15, React 19, TypeScript, CSS |
-| Backend | Next.js API routes on Node.js runtime |
-| AI | Qwen through Alibaba Cloud Model Studio's OpenAI-compatible API |
-| External data | GitHub REST/raw files, npm registry, npm tarballs, PyPI JSON API, PyPI sdists/wheels |
-| Storage | Local JSON file at `.locksmith/reviews.json` |
-| CLI | Node.js executable script in `bin/locksmith.mjs` |
-| Deployment | Alibaba Cloud ECS, Docker or standalone Next.js output |
+- Node.js 20+
+- Next.js 15
+- React 19
+- TypeScript
+- Qwen through Alibaba Cloud Model Studio
+- Alibaba Cloud ECS
+- GitHub API and raw repository files
+- npm Registry and package tarballs
+- PyPI JSON API and package artifacts
+- Local JSON storage
+- Docker / standalone Next.js deployment
 
-## Smart Contracts
+### ☁️ Alibaba Cloud Deployment
 
-This project does not use smart contracts.
+Locksmith is deployed as a single-node Next.js application on an Alibaba Cloud ECS instance. The server runs the web interface, API routes, review jobs, and local `.locksmith/` storage. Qwen analysis is sent through Alibaba Cloud Model Studio's OpenAI-compatible API using server-side credentials.
 
-## Getting Started
+- **Compute:** Alibaba Cloud ECS
+- **AI service:** Qwen via Alibaba Cloud Model Studio
+- **Application:** Next.js running on Node.js
+- **Storage:** Persistent local JSON and report files on the ECS instance
+- **Demo:** [http://47.84.96.197](http://47.84.96.197)
+
+The current hackathon deployment uses HTTP to keep the MVP inexpensive. A production deployment should add a domain, TLS, HTTPS, and a reverse proxy.
+
+## 🚀 Getting Started
 
 Requirements:
 
@@ -126,7 +103,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Environment Variables
+## 🔧 Environment Variables
 
 | Variable | Purpose |
 | --- | --- |
@@ -136,7 +113,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 There is no mock mode in the current app. Reviews fail fast when `QWEN_API_KEY` or `QWEN_MODEL` is missing. The deployed instance keeps these values server-side; do not commit them.
 
-## Running Locally
+## 💻 Running Locally
 
 Start the web app:
 
@@ -184,7 +161,7 @@ curl -sS -X POST http://localhost:3000/api/review \
 
 The review endpoint returns a `reviewId`. Poll `/api/review/{reviewId}` for package retrieval progress, agent progress, and final results.
 
-## Project Structure
+## 📁 Project Structure
 
 ```text
 .
@@ -207,13 +184,10 @@ The review endpoint returns a `reviewId`. Poll `/api/review/{reviewId}` for pack
 │   └── reviewJobs.ts         # In-memory async review jobs
 ├── public/assets/            # Product and workflow illustrations
 ├── Dockerfile                # Standalone production image
-├── ALIBABA.md                # Current ECS deployment record and proof notes
-├── CLOUD.md                  # ECS deployment runbook
-├── SUBMISSION.md             # Hackathon submission requirements
 └── README.md
 ```
 
-## Demo / Screenshots
+## 🎬 Demo / Screenshots
 
 The repository includes product and workflow assets under [`public/assets`](public/assets). The live demo is available at [http://47.84.96.197](http://47.84.96.197).
 
@@ -229,23 +203,15 @@ Recommended demo flow:
 8. Open `/history` to show the saved local review.
 9. Run `node bin/locksmith.mjs npm install <package>` from a supported local npm project to show the guarded install flow and HTML artifact.
 
-## Roadmap
+## 🗺️ Future Roadmap
 
-### Implemented MVP
-
-- Next.js web app.
-- Public GitHub repository inspection.
-- Branch selection.
-- Dependency file detection.
-- Dependency state hashing.
-- npm direct dependency evidence from package tarballs.
-- PyPI pinned dependency evidence from sdists/wheels.
-- Six Qwen agent prompts and structured JSON findings.
-- Live review job polling.
-- Final verdict report.
-- Local review history.
-- Guarded local npm install command.
-- Build and deployment smoke checks; automated test coverage is still to be expanded.
+1. **Repo-aware dependency states** — fingerprint the canonical repository, commit SHA, package manager, dependency-file hashes, lockfile hashes, and policy version. Resolve the same state consistently from web, CLI, and CI.
+2. **Workspace approval layer** — add authenticated workspaces with private `Allow` / `Review` / `Block` decisions, approver identity, expiry, explicit overrides, and an audit trail. A public scan must remain analysis only until that workspace approves it.
+3. **Global evidence cache with decision boundaries** — store reusable package/artifact evidence centrally. When a package version already has valid evidence, reuse the evidence rather than re-fetching and re-inspecting it, while still having the Baseline and Judge agents evaluate the new repository context and workspace policy. Evidence reuse must never silently become cross-repo approval.
+4. **Baseline-aware incremental reviews** — compare a candidate state to the last workspace-approved baseline, prioritize added/updated packages and risky transitive changes, and recommend pinning or rolling back to the prior approved version when appropriate.
+5. **Repo trust pointer and CI** — write a small committed `.locksmith/locksmith.json` pointer after approval; add GitHub Actions/PR checks that verify the current state, approval validity, policy, and revocations before merge.
+6. **Stronger behavioral evidence** — execute selected packages in an isolated monitored sandbox, clearly separating observed behavior from the current static/inferred findings.
+7. **Broader developer workflows** — publish the CLI, add `locksmith scan .` and `locksmith review`, support pip/Poetry and more lockfile formats, then add private GitHub import through OAuth.
 
 ### Current Limitations
 
@@ -260,7 +226,9 @@ Recommended demo flow:
 - Large package evidence can make later Qwen roles slow or stall.
 - The CLI is not published on npm yet; use the repository script or `npm link` during local development.
 - Only guarded npm install is in scope. pip and raw scan commands are not MVP surfaces.
-- There is no workspace approval layer, policy editor, repo trust file writer, or CI integration yet.
+- The dependency state ID hashes dependency-file content only; it is not yet scoped by repository, commit, branch, package manager, or policy version.
+- Package evidence is a per-storage-root local cache. It can avoid a repeat artifact retrieval, but it neither skips Qwen review nor provides a reusable approval for a different repository.
+- There is no workspace approval layer, policy editor, repo trust file writer, CI integration, revocation feed, or shared evidence backend yet.
 - There is no authentication, private GitHub import, or team account model.
 
 ## What Is Not Completed Yet
@@ -275,10 +243,7 @@ This section maps the remaining work to `SUBMISSION.md`.
 | Code file demonstrating Alibaba Cloud services/APIs | Completed through [`lib/locksmith.ts`](lib/locksmith.ts), which calls Qwen Model Studio's OpenAI-compatible API. |
 | Architecture diagram | Completed for the current web app, review engine, external package registries, Qwen agents, and local persistent storage. |
 | About 3-minute public demo video | Not completed. Needs a public YouTube, Vimeo, or Facebook Video link. |
-| Text description of features/functionality | Completed in this README. |
-| Track identification | Completed: Track 3 Agent Society. |
-| Optional blog/social post | Not completed. |
-
+| 
 ## Notes
 
 - Public scans do not equal owner or team approval.
