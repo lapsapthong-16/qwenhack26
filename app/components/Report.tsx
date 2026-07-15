@@ -81,6 +81,20 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
       </div>
     </header>
 
+    <section className="workspace-trust" aria-label="Workspace decision">
+      <div className="workspace-trust-heading">
+        <span className="workspace-kicker">YOUR WORKSPACE</span>
+        <h2>No decision yet</h2>
+        <p>Global evidence informs this review. Your team still decides whether this exact dependency state is trusted.</p>
+      </div>
+      <dl className="workspace-trust-facts">
+        <div><dt>State</dt><dd>{result.dependencyStateId}</dd></div>
+        <div><dt>Policy</dt><dd>Strict</dd></div>
+        <div><dt>Validity</dt><dd>Not approved</dd></div>
+        <div><dt>Next step</dt><dd>Human review required</dd></div>
+      </dl>
+    </section>
+
     <section className="repo-agents">
       <RepoAgent role="Baseline" finding={baseline} state={roleState("Baseline", job, completed, baseline)} result={result} counts={counts} />
       <RepoAgent role="Judge" finding={judge} state={roleState("Judge", job, completed, judge)} result={result} />
@@ -93,7 +107,7 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
           <Badge label="Needs attention" count={counts.attention} tone="review" />
           <Badge label="Added" count={counts.added} tone="block" />
           <Badge label="Updated" count={counts.updated} tone="review" />
-          <Badge label="Approved" count={counts.approved} tone="allow" />
+          <Badge label="Global Allow" count={counts.approved} tone="allow" />
           <Badge label="Review Required" count={counts.review} tone="review" />
           <Badge label="Block" count={counts.block} tone="block" />
         </div>
@@ -103,11 +117,11 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
           return <button className={`package-row status-${pkg.status.toLowerCase()} ${active ? "selected" : ""}`} aria-pressed={active} key={keyFor(pkg)} onClick={() => { setSelectedPackageKey(keyFor(pkg)); setSelectedFilePath(pkg.suspiciousLines?.[0]?.filePath || pkg.inspectedFiles[0]?.path || ""); }}>
             <b>{pkg.scanStatus === "unscanned" ? "Skipped" : uiVerdict(pkg.status)}</b>
             <span><strong>{pkg.name}</strong><code>{versionText(pkg)}</code></span>
-            <small>{pkg.status === "Allow" ? "Approved · summary only" : pkg.reason}</small>
+            <small>{pkg.status === "Allow" ? "Global analysis: no blocking signal · summary only" : pkg.reason}</small>
             <em>{suspicious ? `${suspicious} findings` : "0 findings"}</em>
           </button>;
         })}
-        <footer className="package-pager"><span>Showing 1-{visiblePackages.length} of {result.packageCount || packages.length} packages</span><b>1</b><button type="button" aria-label="Next package page">›</button></footer>
+        <footer className="package-pager"><span>Showing 1-{visiblePackages.length} of {result.packageCount || packages.length} packages</span></footer>
       </aside>
 
       <section className="package-inspection" aria-label="Package inspection">
@@ -202,7 +216,7 @@ function FileEvidence({ pkg, selectedFile, setSelectedFilePath }:{ pkg:PackageEv
           <span>{path.replace(/^package\//, "")}</span><em>{count ? "Suspicious" : inspected ? "Safe" : "Code unavailable"}</em>
         </button>;
       })}
-      <button className="show-files" type="button">Show all files ({pkg.fileCount})</button>
+      <span className="show-files">Showing inspected files ({pkg.inspectedFiles.length} of {pkg.fileCount})</span>
     </nav>
     <CodeViewer file={selectedFile} findings={pkg.suspiciousLines || []} />
   </div>;
@@ -213,7 +227,7 @@ function AgentFinding({ role, finding, state, pkg }:{ role:string; finding?:Find
   const safeFallback = !finding && pkg?.status === "Allow" && state === "done";
   return <article className={`agent-finding agent-${state}`}>
     <header><strong>{role} Agent</strong><b className={finding || safeFallback ? `verdict-pill verdict-${(finding?.verdict || "Allow").toLowerCase()}` : ""}>{finding ? uiVerdict(finding.verdict) : safeFallback ? "Approved" : statusText(state)}</b></header>
-    <p>{finding?.summary || (safeFallback ? "No package-specific concern for this approved package." : state === "running" ? "Running package review..." : state === "failed" ? "Agent failed" : "Queued")}</p>
+    <p>{finding?.summary || (safeFallback ? "No package-specific concern in global analysis; workspace approval is still pending." : state === "running" ? "Running package review..." : state === "failed" ? "Agent failed" : "Queued")}</p>
     <dl><div><dt>Evidence</dt><dd>{finding?.evidence?.length || 0}</dd></div><div><dt>Key Evidence</dt><dd>{safeFallback ? "summary-only" : keyEvidence}</dd></div></dl>
   </article>;
 }

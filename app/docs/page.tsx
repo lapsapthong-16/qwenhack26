@@ -2,7 +2,7 @@ import Link from "next/link";
 import "./docs.css";
 
 const groups = [["GETTING STARTED", [["introduction", "Introduction"], ["quickstart", "Quickstart"]]], ["CONCEPTS", [["dependency-states", "Dependency states"], ["agent-panel", "The agent panel"], ["verdicts", "Verdicts & policy"]]], ["TEAM WORKFLOWS", [["workspace-trust", "Workspace trust"], ["cli", "CLI reference"]]]] as const;
-function Code({ children }: { children: string }) { return <pre className="docs-code"><code>{children}</code><button aria-label="Copy code">Copy</button></pre>; }
+function Code({ children }: { children: string }) { return <pre className="docs-code"><code>{children}</code></pre>; }
 
 export default function DocsPage() {
   return <main className="docs-page"><aside className="docs-sidebar" aria-label="Documentation navigation"><div className="docs-sidebar-title"><span className="docs-dot" /> Locksmith docs</div><p className="docs-version">v0.1 · HACKATHON PREVIEW</p><nav>{groups.map(([group, items]) => <div className="docs-nav-group" key={group}><p>{group}</p>{items.map(([id, label]) => <a href={`#${id}`} key={id}>{label}</a>)}</div>)}</nav><Link className="docs-sidebar-cta" href="/review">Open a review <span>↗</span></Link></aside>

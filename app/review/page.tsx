@@ -55,6 +55,7 @@ export default function ReviewPage() {
       setError(data.error || "Review failed");
       setPhase("input");
     }
+    return data;
   }
 
   async function runReview(payload:{ repo?:string; branch?:string } = { repo }) {
@@ -68,8 +69,10 @@ export default function ReviewPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Review failed");
       if (!data.reviewId) throw new Error("Review did not start. Try again.");
-      await loadJob(data.reviewId);
-      poll.current = setInterval(() => void loadJob(data.reviewId).catch(cause => {
+      const initialJob = await loadJob(data.reviewId);
+      // loadJob may have already completed the job and cleared the polling ref.
+      // Only keep polling while the review is still active.
+      if (initialJob.status !== "complete" && initialJob.status !== "failed") poll.current = setInterval(() => void loadJob(data.reviewId).catch(cause => {
         if (poll.current) clearInterval(poll.current);
         setError(cause instanceof Error ? cause.message : "Review status failed");
         setPhase("input");

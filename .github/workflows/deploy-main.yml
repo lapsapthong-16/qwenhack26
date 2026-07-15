@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           cd /opt/locksmith
           git fetch --prune origin main
+          git clean -fd
           git checkout -B main origin/main
           git reset --hard origin/main
           npm ci
