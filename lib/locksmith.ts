@@ -3,6 +3,7 @@ import { applyPackageFindings, collectNpmPackageEvidence, type PackageEvidence, 
 import { readPackageEvidence, savePackageEvidence } from "./packageEvidence.ts";
 import { collectPythonPackageEvidence } from "./pythonPackages.ts";
 import { readHistory } from "./reviewHistory.ts";
+import { canonicalRepoIdentity, lockfileHash, policyHash, dependencyDiff } from "./workspaceDecisions.ts";
 
 export const ROLES = ["Baseline", "Manifest", "Static", "Behavior", "Skeptic", "Judge"] as const;
 export type Role = (typeof ROLES)[number];
@@ -26,6 +27,9 @@ export type ReviewInput = {
   projectIdentity?: string;
   storageRoot?: string;
   requireFullNpmCoverage?: boolean;
+  workspaceId?: string;
+  commitSha?: string;
+  packageManager?: string;
 };
 export type RepoInspection = { repoUrl: string; defaultBranch: string; branches: string[]; dependencyFiles: string[] };
 export type ReviewResult = {
@@ -47,6 +51,11 @@ export type ReviewResult = {
   findings: Finding[];
   verdict: Verdict;
   remediation: string;
+  baselineReviewId?: string;
+  baselineDependencyStateId?: string;
+  dependencyDiff?: ReturnType<typeof npmDependencyDiff>;
+  reuseReason?: "exact-team-approval" | "exact-local-approval" | "none";
+  lockfileHash?: string;
 };
 export type ReviewHooks = {
   onPackages?: (packages: PackageEvidence[]) => void;
@@ -107,6 +116,22 @@ export function dependencyStateId(sourceOrFiles: string | Record<string, string>
   const hash = createHash("sha256");
   for (const name of Object.keys(files).sort()) hash.update(`\n${name}\0${files[name]}`);
   return `state_${hash.digest("hex").slice(0, 24)}`;
+}
+
+export function dependencyStateIdentity(input: { files: Record<string, string>; repoIdentity?: string; commitSha?: string; packageManager?: string }) {
+  const hash = createHash("sha256");
+  hash.update(`repo:${canonicalRepoIdentity(input.repoIdentity || "local:.\n")}`);
+  hash.update(`\ncommit:${input.commitSha || ""}\nmanager:${input.packageManager || (input.files["package-lock.json"] ? "npm" : "unknown")}`);
+  for (const name of Object.keys(input.files).sort()) hash.update(`\n${name}\0${input.files[name]}`);
+  return `state_${hash.digest("hex").slice(0, 24)}`;
+}
+
+export function npmDependencyDiff(previousFiles: Record<string, string> = {}, currentFiles: Record<string, string> = {}) {
+  const read = (files: Record<string, string>) => {
+    try { const lock = JSON.parse(files["package-lock.json"] || "{}"); return Object.fromEntries(Object.entries(lock.packages || {}).filter(([key]) => key).map(([key, value]) => [key.replace(/^node_modules\//, ""), String((value as { version?: string }).version || "unknown")])); }
+    catch { return {}; }
+  };
+  return dependencyDiff(read(previousFiles), read(currentFiles));
 }
 
 export const AGENT_PROMPTS: Record<Role, string> = {
@@ -189,16 +214,20 @@ export function resolveFinalVerdict(judgeVerdict: Verdict, packages: PackageEvid
 export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks = {}): Promise<ReviewResult> {
   const evidence = await gatherEvidence(input);
   const policy = input.policy || "strict";
-  const stateId = dependencyStateId(evidence.files);
+  const stateId = input.repoUrl || input.commitSha || input.projectIdentity
+    ? dependencyStateIdentity({ files: evidence.files, repoIdentity: input.repoUrl || input.projectIdentity, commitSha: input.commitSha, packageManager: input.packageManager })
+    : dependencyStateId(evidence.files);
   let packages: PackageEvidence[] = [];
   const storage = { rootDir: input.storageRoot };
   const [packageEvidence, history] = await Promise.all([readPackageEvidence(storage), readHistory(storage)]);
-  const previousReview = history.reviews.find(review => review.source === evidence.source || review.repoUrl === input.repoUrl);
+  const previousReview = history.reviews.filter(review => review.verdict === "Allow" && review.decisionKind !== "analysis" && (review.source === evidence.source || review.repoUrl === input.repoUrl)).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "") || (b.reviewId || "").localeCompare(a.reviewId || ""))[0];
+  const diff = npmDependencyDiff(previousReview?.files.reduce((all, name) => ({ ...all, [name]: "" }), {}), evidence.files);
   const previousReviewSummary = previousReview ? {
     reviewId: previousReview.reviewId,
     dependencyStateId: previousReview.dependencyStateId,
     verdict: previousReview.verdict,
     packages: previousReview.packages.map(pkg => ({ name: pkg.name, version: pkg.version, status: pkg.status, artifactKey: pkg.artifactKey })),
+    dependencyDiff: diff,
   } : null;
   const collectionContext = { cached: packageEvidence.packages, previous: previousReview?.packages || [], requireFullCoverage: input.requireFullNpmCoverage };
   hooks.onRoleStart?.("Baseline");
@@ -261,5 +290,10 @@ export async function reviewDependencies(input: ReviewInput, hooks: ReviewHooks 
       : incompleteNpmCoverage && judge.verdict === "Allow"
         ? "Review required because one or more resolved npm artifacts could not be inspected."
         : judge.summary,
+    baselineReviewId: previousReview?.reviewId,
+    baselineDependencyStateId: previousReview?.dependencyStateId,
+    dependencyDiff: diff,
+    reuseReason: "none",
+    lockfileHash: evidence.files["package-lock.json"] ? lockfileHash(evidence.files["package-lock.json"]) : undefined,
   };
 }

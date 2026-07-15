@@ -18,7 +18,7 @@ export type RoleStatus = "queued"|"running"|"done"|"failed";
 export type SuspiciousLine = { filePath:string; startLine:number; endLine?:number; severity:"low"|"medium"|"high"|"critical"; sourceAgent:string; reviewedBy?:string; reason:string; rule?:string };
 export type PackageFile = { path:string; reason:string; content:string; contentTruncated?:boolean; displayedBytes?:number; originalBytes?:number };
 export type PackageEvidence = { name:string; version:string; packageManager?:"npm"|"pypi"; dependencyType:string; scanStatus?:"new"|"reused"|"changed"|"unscanned"; previousReviewId?:string; evidenceId?:string; evidenceSource?:"global-cache"|"workspace-cache"|"fresh-scan"|"none"; artifactKey?:string; fileCount:number; files:string[]; inspectedFiles:PackageFile[]; suspiciousLines?:SuspiciousLine[]; status:Verdict; reason:string; evidence?:string[]; retention?:string };
-export type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string; branch?:string; createdAt?:string; packageManager?:string };
+export type ReviewResult = { reviewId:string; dependencyStateId:string; source:string; files:string[]; packages:PackageEvidence[]; packageCount:number; inspectedPackageCount:number; packageSummary:string; findings:Finding[]; verdict:Verdict; remediation:string; mode:string; model:string; branch?:string; createdAt?:string; packageManager?:string; baselineReviewId?:string; baselineDependencyStateId?:string; dependencyDiff?:{name:string;before?:string;after?:string;change:string}[]; reuseReason?:string };
 export type ReportJob = {
   status:"queued"|"retrieving-packages"|"running"|"complete"|"failed";
   currentRole?:string;
@@ -84,16 +84,18 @@ export default function Report({ result, job }:{ result:ReviewResult; job?:Repor
     <section className="workspace-trust" aria-label="Workspace decision">
       <div className="workspace-trust-heading">
         <span className="workspace-kicker">YOUR WORKSPACE</span>
-        <h2>No decision yet</h2>
-        <p>Global evidence informs this review. Your team still decides whether this exact dependency state is trusted.</p>
+        <h2>{result.reuseReason === "exact-team-approval" ? "Exact team-reviewed state" : result.baselineReviewId ? "Last team-reviewed baseline" : "No workspace decision"}</h2>
+        <p>{result.reuseReason === "exact-team-approval" ? "This exact dependency state matches an active workspace Allow and can be reused." : result.baselineReviewId ? "Comparison context only. The current dependency state is changed and requires a new review." : "Global evidence informs this review. Global evidence is not team approval."}</p>
       </div>
       <dl className="workspace-trust-facts">
         <div><dt>State</dt><dd>{result.dependencyStateId}</dd></div>
         <div><dt>Policy</dt><dd>Strict</dd></div>
-        <div><dt>Validity</dt><dd>Not approved</dd></div>
-        <div><dt>Next step</dt><dd>Human review required</dd></div>
+        <div><dt>Validity</dt><dd>{result.reuseReason === "exact-team-approval" ? "Active exact match" : result.baselineReviewId ? "Baseline only" : "Not approved"}</dd></div>
+        <div><dt>Next step</dt><dd>{result.reuseReason === "exact-team-approval" ? "Reuse allowed" : "New review required"}</dd></div>
       </dl>
     </section>
+
+    {result.baselineReviewId ? <section className="workspace-trust" aria-label="Dependency baseline"><div className="workspace-trust-heading"><span className="workspace-kicker">BASELINE COMPARISON</span><h2>Current dependency state: changed</h2><p>Last team-reviewed baseline: {result.baselineReviewId}. Changes are evidence for this review, never authorization.</p></div><dl className="workspace-trust-facts"><div><dt>Baseline state</dt><dd>{result.baselineDependencyStateId || "unknown"}</dd></div><div><dt>Changes</dt><dd>{result.dependencyDiff?.filter(item => item.change !== "unchanged").map(item => `${item.name} ${item.before || "—"} → ${item.after || "—"}`).join("; ") || "Dependency files changed"}</dd></div></dl></section> : null}
 
     <section className="repo-agents">
       <RepoAgent role="Baseline" finding={baseline} state={roleState("Baseline", job, completed, baseline)} result={result} counts={counts} />

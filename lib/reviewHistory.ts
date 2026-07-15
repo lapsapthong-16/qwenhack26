@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { sanitizeReviewForStorage } from "./evidenceRetention.ts";
 import type { ReviewResult, Verdict } from "./locksmith.ts";
+import { findLastApprovedBaseline as selectBaseline, findExactReusableApproval as selectExact, type WorkspaceDecision } from "./workspaceDecisions.ts";
 
 /** The web app intentionally uses its own working directory; callers such as the
  * CLI pass `rootDir` so a decision always stays with the inspected project. */
@@ -16,6 +17,17 @@ export type StoredReview = ReviewResult & {
   reportPath?: string;
   finalizedAt?: string;
   installError?: string;
+  workspaceId?: string;
+  repoIdentity?: string;
+  policyHash?: string;
+  lockfileHash?: string;
+  validity?: "active" | "revoked" | "expired";
+  installationVerification?: "not-applicable" | "pending" | "verified" | "failed";
+  approvedBy?: string;
+  approvedAt?: string;
+  verifiedAt?: string;
+  recordedAt?: string;
+  expiresAt?: string;
 };
 
 export type HistoryFile = { reviews: StoredReview[] };
@@ -23,6 +35,7 @@ export type DecisionLookup = {
   projectIdentity: string;
   dependencyStateId: string;
   policy: string;
+  lockfileHash?: string;
 };
 
 function rootFor(options: ReviewStorageOptions = {}) {
@@ -71,6 +84,7 @@ export async function findExactDecision(lookup: DecisionLookup, options: ReviewS
     review.projectIdentity === lookup.projectIdentity &&
     review.dependencyStateId === lookup.dependencyStateId &&
     review.policy === lookup.policy &&
+    (!lookup.lockfileHash || review.lockfileHash === lookup.lockfileHash) &&
     review.decisionKind === "install-approval"
   );
 }
@@ -83,13 +97,26 @@ export async function findFinalizedInstallApproval(lookup: DecisionLookup, optio
 
 /** Single future extension point for expiry, revocation, and remote policy checks. */
 export function isReusableDecision(review: StoredReview, now = new Date()) {
-  void now;
+  const expired = review.expiresAt ? now.getTime() >= new Date(review.expiresAt).getTime() : false;
   return review.verdict === "Allow" &&
     review.decisionKind === "install-approval" &&
     review.decisionStatus === "install-finalized" &&
     Boolean(review.projectIdentity) &&
     Boolean(review.dependencyStateId) &&
-    Boolean(review.policy);
+    Boolean(review.policy) && !expired && review.validity !== "revoked" && review.validity !== "expired" && review.installationVerification !== "failed";
+}
+
+/** Exact workspace reuse for web/PR review. CLI callers must additionally require verified installation. */
+export async function findExactReusableApproval(lookup: DecisionLookup & { workspaceId: string; repoIdentity: string; policyHash: string }, options: ReviewStorageOptions = {}) {
+  const history = await readHistory(options);
+  const decisions = history.reviews as Array<StoredReview & Partial<WorkspaceDecision>>;
+  return selectExact(decisions as WorkspaceDecision[], { ...lookup, lockfileHash: lookup.lockfileHash || "" });
+}
+
+/** Only the newest compatible active Allow is a comparison baseline; it never authorizes the candidate. */
+export async function findLastApprovedBaseline(lookup: { workspaceId: string; repoIdentity: string; policyHash: string }, options: ReviewStorageOptions = {}) {
+  const history = await readHistory(options);
+  return selectBaseline(history.reviews as Array<StoredReview & Partial<WorkspaceDecision>> as WorkspaceDecision[], lookup);
 }
 
 /** Promote only the same stored pending Allow after npm has succeeded and the
@@ -105,7 +132,7 @@ export async function finalizeInstallApproval(
   if (review.verdict !== "Allow" || review.decisionKind !== "install-approval" || review.decisionStatus !== "pending-install") {
     throw new Error(`Locksmith review ${reviewId} is not a pending install approval`);
   }
-  const finalized: StoredReview = { ...review, decisionStatus: "install-finalized", finalizedAt };
+  const finalized: StoredReview = { ...review, decisionStatus: "install-finalized", finalizedAt, installationVerification: "verified", verifiedAt: finalizedAt };
   await saveReview(finalized, options);
   return finalized;
 }

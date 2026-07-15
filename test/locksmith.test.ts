@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { dependencyStateId, resolveFinalVerdict } from "../lib/locksmith.ts";
 import { guardedNpmInstall, validateNpmInstallArgs } from "../lib/npmInstall.ts";
 import { finalizeInstallApproval, findFinalizedInstallApproval, saveReview, withDecisionMetadata } from "../lib/reviewHistory.ts";
+import { canonicalRepoIdentity, dependencyDiff, findExactReusableApproval, findLastApprovedBaseline, lockfileHash, policyHash, validateTrustPointer, type WorkspaceDecision } from "../lib/workspaceDecisions.ts";
 
 const packageJson = JSON.stringify({ name: "fixture-app", version: "1.0.0", dependencies: {} });
 const lockfile = JSON.stringify({ name: "fixture-app", lockfileVersion: 3, packages: { "": { name: "fixture-app", version: "1.0.0" } } });
@@ -71,4 +72,34 @@ test("workspace approvals are reusable only after install finalization", async (
   await finalizeInstallApproval("rev-test", { rootDir: root }, "2026-07-15T00:00:00.000Z");
   const finalized = await findFinalizedInstallApproval(lookup, { rootDir: root });
   assert.equal(finalized?.decisionStatus, "install-finalized");
+});
+
+function decision(overrides: Partial<WorkspaceDecision> = {}): WorkspaceDecision {
+  return { workspaceId: "acme", repoIdentity: "github.com/acme/app", policyName: "strict", policyHash: policyHash("strict"), dependencyStateId: "state-1", reviewId: "rev-1", verdict: "Allow", validity: "active", installationVerification: "not-applicable", approvedBy: "alice", approvedAt: "2026-07-15T00:00:00.000Z", recordedAt: "2026-07-15T00:00:00.000Z", lockfileHash: lockfileHash("lock"), ...overrides };
+}
+
+test("workspace exact reuse requires every identity field and validity", () => {
+  const item = decision();
+  const lookup = { workspaceId: item.workspaceId, repoIdentity: item.repoIdentity, policyHash: item.policyHash, dependencyStateId: item.dependencyStateId, lockfileHash: item.lockfileHash };
+  assert.equal(findExactReusableApproval([item], lookup)?.reviewId, "rev-1");
+  assert.equal(findExactReusableApproval([{ ...item, lockfileHash: lockfileHash("changed") }], lookup), undefined);
+  assert.equal(findExactReusableApproval([{ ...item, expiresAt: "2020-01-01T00:00:00.000Z" }], lookup), undefined);
+  assert.equal(findExactReusableApproval([{ ...item, validity: "revoked" }], lookup), undefined);
+});
+
+test("baseline selection is latest compatible Allow only", () => {
+  const old = decision({ reviewId: "rev-old", approvedAt: "2026-07-10T00:00:00.000Z" });
+  const latest = decision({ reviewId: "rev-latest", approvedAt: "2026-07-14T00:00:00.000Z", dependencyStateId: "state-2" });
+  const ignored = decision({ reviewId: "rev-block", verdict: "Block", approvedAt: "2026-07-15T00:00:00.000Z" });
+  assert.equal(findLastApprovedBaseline([old, latest, ignored], { workspaceId: "acme", repoIdentity: old.repoIdentity, policyHash: old.policyHash })?.reviewId, "rev-latest");
+});
+
+test("repo identity and deterministic diff protect state comparisons", () => {
+  assert.equal(canonicalRepoIdentity("https://GitHub.com/acme/app.git"), "github.com/acme/app");
+  assert.deepEqual(dependencyDiff({ axios: "1.0.0", old: "1" }, { axios: "1.1.0", added: "1" }), [
+    { name: "added", before: undefined, after: "1", change: "added" }, { name: "axios", before: "1.0.0", after: "1.1.0", change: "updated" }, { name: "old", before: "1", after: undefined, change: "removed" },
+  ]);
+  const item = decision();
+  assert.equal(validateTrustPointer({ workspace: "acme", reviewId: "rev-1", dependencyStateId: "state-1", lockfileHash: item.lockfileHash, policy: "strict" }, item, { workspaceId: "acme", repoIdentity: item.repoIdentity, policyHash: item.policyHash, reviewId: "rev-1", dependencyStateId: "state-1", lockfileHash: item.lockfileHash }), true);
+  assert.equal(validateTrustPointer({ workspace: "other", reviewId: "rev-1", dependencyStateId: "state-1", lockfileHash: item.lockfileHash, policy: "strict" }, item, { workspaceId: "acme", repoIdentity: item.repoIdentity, policyHash: item.policyHash, reviewId: "rev-1", dependencyStateId: "state-1", lockfileHash: item.lockfileHash }), false);
 });

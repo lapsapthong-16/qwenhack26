@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { reviewDependencies, ROLES, type Finding, type ReviewInput, type ReviewResult, type Role } from "./locksmith.ts";
 import type { PackageEvidence } from "./npmPackages.ts";
 import { saveReview } from "./reviewHistory.ts";
+import { canonicalRepoIdentity, findExactReusableApproval, findLastApprovedBaseline, policyHash, readWorkspaceDecisions } from "./workspaceDecisions.ts";
 
 export type ReviewJob = {
   reviewId: string;
@@ -71,6 +72,15 @@ export function startReview(input: ReviewInput) {
         },
       });
       const savedResult = { ...result, reviewId, createdAt: job.createdAt };
+      if (input.workspaceId && savedResult.lockfileHash) {
+        const decisions = await readWorkspaceDecisions(input.storageRoot);
+        const repoIdentity = canonicalRepoIdentity(input.repoUrl || input.source || "");
+        const exact = findExactReusableApproval(decisions, { workspaceId: input.workspaceId, repoIdentity, policyHash: policyHash(input.policy || "strict"), dependencyStateId: savedResult.dependencyStateId, lockfileHash: savedResult.lockfileHash });
+        const baseline = findLastApprovedBaseline(decisions, { workspaceId: input.workspaceId, repoIdentity, policyHash: policyHash(input.policy || "strict") });
+        savedResult.reuseReason = exact ? "exact-team-approval" : "none";
+        savedResult.baselineReviewId = baseline?.reviewId;
+        savedResult.baselineDependencyStateId = baseline?.dependencyStateId;
+      }
       job.result = publicResult(savedResult);
       job.packages = result.packages;
       job.status = "complete";

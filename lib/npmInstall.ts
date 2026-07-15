@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dependencyStateId } from "./locksmith.ts";
 import { finalizeInstallApproval } from "./reviewHistory.ts";
 import { readNpmFiles, reviewLocalNpmCandidate, type LocalReview } from "./localReview.ts";
+import { writeTrustPointer } from "./workspaceDecisions.ts";
 
 type NpmRun = (command: string, args: string[], cwd: string) => Promise<number>;
 export type InstallOutcome = { code: 0 | 1 | 2 | 3; review?: LocalReview; message: string };
@@ -101,6 +102,9 @@ export async function guardedNpmInstall({ rootDir = process.cwd(), args = [], po
     const actual = await readNpmFiles(root);
     if (dependencyStateId(actual) !== review.result.dependencyStateId) return { code: 1, review, message: "Installed dependency state did not match the reviewed candidate." };
     if (!review.reused) await finalizeInstallApproval(review.result.reviewId!, { rootDir: root });
+    if (review.workspaceDecision && process.env.LOCKSMITH_WORKSPACE_ID) {
+      await writeTrustPointer(root, { ...review.workspaceDecision, installationVerification: "verified", verifiedAt: new Date().toISOString() });
+    }
     return { code: 0, review, message: review.reused ? "Approved dependency state reused and installed from the frozen lockfile." : "Approved dependency state installed and finalized." };
   } catch (error) {
     return { code: 1, message: error instanceof Error ? error.message : "Guarded npm install failed." };
