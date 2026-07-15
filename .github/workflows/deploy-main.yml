@@ -42,6 +42,17 @@ jobs:
           npm run build
           sudo systemctl restart locksmith.service
           sudo systemctl is-active --quiet locksmith.service
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1/api/health; then
+              echo
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "Health check failed after 60 seconds" >&2
+              exit 1
+            fi
+            sleep 2
+          done
           test "$(curl --fail --silent --show-error --max-time 15 http://127.0.0.1/api/health)" = '{"ok":true,"service":"locksmith"}'
           deployed="$(git rev-parse HEAD)"
           expected="$(git rev-parse origin/main)"
