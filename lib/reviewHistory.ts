@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { sanitizeReviewForStorage } from "./evidenceRetention.ts";
 import type { ReviewResult, Verdict } from "./locksmith.ts";
 import { findLastApprovedBaseline as selectBaseline, findExactReusableApproval as selectExact, type WorkspaceDecision } from "./workspaceDecisions.ts";
+import { readRecord, writeRecord } from "./database.ts";
 
 /** The web app intentionally uses its own working directory; callers such as the
  * CLI pass `rootDir` so a decision always stays with the inspected project. */
@@ -53,6 +54,7 @@ function isNotFound(error: unknown) {
 /** Reads retained reviews. Malformed history is deliberately not treated as empty:
  * callers which guard installation must fail closed instead of losing decisions. */
 export async function readHistory(options: ReviewStorageOptions = {}): Promise<HistoryFile> {
+  if (!options.rootDir && process.env.DATABASE_URL) return readRecord("review-history", "global", { reviews: [] });
   try {
     const parsed = JSON.parse(await readFile(historyPathFor(options), "utf8")) as unknown;
     if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as HistoryFile).reviews)) {
@@ -69,6 +71,7 @@ export async function saveReview(review: StoredReview, options: ReviewStorageOpt
   const stored = sanitizeReviewForStorage(review);
   const history = await readHistory(options);
   const reviews = [stored, ...history.reviews.filter(item => item.reviewId !== review.reviewId)].slice(0, 100);
+  if (!options.rootDir && process.env.DATABASE_URL) { await writeRecord("review-history", "global", { reviews }); return stored; }
   const historyPath = historyPathFor(options);
   await mkdir(dirname(historyPath), { recursive: true });
   await writeFile(historyPath, JSON.stringify({ reviews }, null, 2));

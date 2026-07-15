@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { readRecord, writeRecord } from "./database.ts";
 
 export type DecisionVerdict = "Allow" | "Review" | "Block";
 export type DecisionValidity = "active" | "revoked" | "expired";
@@ -56,8 +57,15 @@ export async function readTrustPointer(rootDir: string) {
 }
 
 export async function readWorkspaceDecisions(rootDir = process.cwd()): Promise<WorkspaceDecision[]> {
+  if (rootDir === process.cwd() && process.env.DATABASE_URL) return readRecord("workspace-decisions", "global", []);
   try { return JSON.parse(await readFile(join(resolve(rootDir), ".locksmith", "workspace-decisions.json"), "utf8")) as WorkspaceDecision[]; }
   catch (error) { if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return []; throw error; }
+}
+
+export async function writeWorkspaceDecisions(items: WorkspaceDecision[], rootDir = process.cwd()) {
+  if (rootDir === process.cwd() && process.env.DATABASE_URL) { await writeRecord("workspace-decisions", "global", items); return; }
+  const dir = join(resolve(rootDir), ".locksmith"); await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "workspace-decisions.json"), JSON.stringify(items, null, 2));
 }
 
 export async function writeTrustPointer(rootDir: string, decision: WorkspaceDecision) {

@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { requireWorkspaceActor, type WorkspaceDecision } from "../../../../../lib/workspaceDecisions";
+import { readWorkspaceDecisions, requireWorkspaceActor, writeWorkspaceDecisions, type WorkspaceDecision } from "../../../../../lib/workspaceDecisions";
 
 export const runtime = "nodejs";
-const path = join(process.cwd(), ".locksmith", "workspace-decisions.json");
-async function readAll(): Promise<WorkspaceDecision[]> { try { return JSON.parse(await readFile(path, "utf8")) as WorkspaceDecision[]; } catch (e) { if (e && typeof e === "object" && "code" in e && e.code === "ENOENT") return []; throw e; } }
+const readAll = () => readWorkspaceDecisions();
 export async function POST(request: Request, { params }: { params: Promise<{ reviewId: string }> }) {
   let actor: { workspaceId: string; actor: string };
   try { actor = requireWorkspaceActor(request.headers); } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Authentication required" }, { status: 401 }); }
@@ -16,6 +13,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ rev
   const next: WorkspaceDecision = body.action === "revoke"
     ? { ...current, reviewId: `${current.reviewId}-revoked-${Date.now()}`, validity: "revoked", approvedBy: actor.actor, recordedAt: new Date().toISOString(), auditReason: "Revoked by workspace actor" }
     : { ...current, reviewId: `${current.reviewId}-verified-${Date.now()}`, installationVerification: "verified", verifiedAt: new Date().toISOString(), approvedBy: actor.actor, recordedAt: new Date().toISOString(), auditReason: "Installation verified by workspace actor" };
-  all.push(next); await mkdir(join(process.cwd(), ".locksmith"), { recursive: true }); await writeFile(path, JSON.stringify(all, null, 2));
+  all.push(next); await writeWorkspaceDecisions(all);
   return NextResponse.json(next, { status: 201 });
 }

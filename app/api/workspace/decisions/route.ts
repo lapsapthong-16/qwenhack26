@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { findExactReusableApproval, findLastApprovedBaseline, requireWorkspaceActor, type WorkspaceDecision } from "../../../../lib/workspaceDecisions";
+import { findExactReusableApproval, findLastApprovedBaseline, readWorkspaceDecisions, requireWorkspaceActor, writeWorkspaceDecisions, type WorkspaceDecision } from "../../../../lib/workspaceDecisions";
 
 export const runtime = "nodejs";
-const path = join(process.cwd(), ".locksmith", "workspace-decisions.json");
-async function readAll(): Promise<WorkspaceDecision[]> { try { return JSON.parse(await readFile(path, "utf8")) as WorkspaceDecision[]; } catch (e) { if (e && typeof e === "object" && "code" in e && e.code === "ENOENT") return []; throw e; } }
-async function save(items: WorkspaceDecision[]) { await mkdir(join(process.cwd(), ".locksmith"), { recursive: true }); await writeFile(path, JSON.stringify(items, null, 2)); }
+const readAll = () => readWorkspaceDecisions();
+const save = (items: WorkspaceDecision[]) => writeWorkspaceDecisions(items);
 
 export async function GET(request: Request) {
   let actor: { workspaceId: string; actor: string };

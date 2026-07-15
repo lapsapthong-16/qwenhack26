@@ -20,23 +20,38 @@ Most scanners answer, "Is this package suspicious?" Locksmith is aimed at the mo
 
 ## ✅ Solution
 
-Locksmith retrieves dependency files, computes a deterministic dependency-file fingerprint, fetches real package code from npm and PyPI, runs six role-specific Qwen agents, and saves completed reviews locally.
+Locksmith retrieves dependency files, computes a deterministic dependency-file fingerprint, fetches real package code from npm and PyPI, and runs six role-specific Qwen agents. The point of the panel is reliability: claims must be grounded in retrieved evidence, weak findings are challenged, and the final Judge must resolve the disagreement before a decision is shown.
+
+## 🔐 Reliability Against Hallucinated Findings
+
+Locksmith does not treat an agent's confidence as proof. Each role receives the dependency files and package artifacts collected for the review, and findings are expected to cite concrete package names, files, scripts, or observed metadata.
+
+The review is deliberately staged:
+
+1. **Baseline Agent** establishes what changed and what evidence is available.
+2. **Manifest, Static, and Behavior Agents** inspect different risk surfaces independently.
+3. **Skeptic Agent** challenges unsupported claims, asks whether suspicious behavior is normal for the package type, and labels evidence as direct or inferred.
+4. **Judge Agent** resolves the panel's findings under the repo context and policy, producing `Allow`, `Review`, or `Block` with a reason and remediation.
+
+This is a reliability pattern, not a guarantee that six agents are automatically more accurate than one. The product makes uncertainty visible, limits unsupported claims, and creates an auditable path from evidence to decision. Behavior findings are explicitly marked as inferred until sandbox execution is implemented.
 
 ### ✨ Features
 
 - **Repo review in seconds** — Paste a public GitHub repository and Locksmith finds the dependency files that matter.
-- **Six-agent security panel** — Baseline, Manifest, Static, Behavior, Skeptic, and Judge agents divide the work, challenge weak evidence, and resolve a final verdict.
+- **Six-agent reliability panel** — Baseline, Manifest, Static, Behavior, Skeptic, and Judge agents divide the work, challenge weak evidence, and resolve a final verdict.
 - **Real package evidence** — Inspect npm and PyPI metadata, tarballs, manifests, lifecycle hooks, entrypoints, and selected source files instead of relying on package reputation alone.
-- **Clear decisions** — Every review ends with an actionable `Allow`, `Review`, or `Block` outcome plus evidence, confidence, and remediation.
+- **Evidence-gated decisions** — Every review ends with an actionable `Allow`, `Review`, or `Block` outcome plus cited evidence, uncertainty, and remediation.
 - **Guarded npm installs** — Review a candidate lockfile before installation; suspicious or incomplete results stop the install before it changes the project.
 - **Live review progress** — Watch package retrieval and each specialist agent move from queued to completed in the review workspace.
 - **Local review history** — Reopen completed decisions and inspect the dependency state ID, findings, evidence, and generated HTML report.
 
 ### 🎯 Why It Matters
 
-Locksmith is built for the moment before a dependency enters a project. It turns a risky package update from a rushed approval into an evidence-backed decision that a developer can explain to the rest of the team.
+Locksmith is built for the moment before a dependency enters a project. It turns a risky package update from a rushed approval into a review that a developer can explain: what changed, what was actually inspected, which claims were challenged, and why the final decision was reached.
 
 ## 🏗️ System Architecture Flow
+
+The full diagram is also committed as [`docs/architecture.mmd`](docs/architecture.mmd).
 
 ```mermaid
 flowchart LR
@@ -62,6 +77,14 @@ flowchart LR
 | Skeptic | Challenges unsupported claims and filters false positives before final judgment. |
 | Judge | Resolves the prior findings into `Allow`, `Review`, or `Block` with the smallest remediation. |
 
+### What the panel is designed to prevent
+
+- A generic risk label with no package or file evidence.
+- A static signal being treated as malicious without package context.
+- An inferred behavior claim being presented as a sandbox observation.
+- A previous review being mistaken for approval of a changed dependency state.
+- A confident final answer that hides disagreement or missing evidence.
+
 ## 🛠️ Tech Stack
 
 - Node.js 20+
@@ -73,17 +96,26 @@ flowchart LR
 - GitHub API and raw repository files
 - npm Registry and package tarballs
 - PyPI JSON API and package artifacts
-- Local JSON storage
+- Local JSON storage for the current MVP; Alibaba Cloud RDS PostgreSQL is provisioned for the persistence migration
 - Docker / standalone Next.js deployment
 
 ### ☁️ Alibaba Cloud Deployment
 
-Locksmith is deployed as a single-node Next.js application on an Alibaba Cloud ECS instance. The server runs the web interface, API routes, review jobs, and local `.locksmith/` storage. Qwen analysis is sent through Alibaba Cloud Model Studio's OpenAI-compatible API using server-side credentials.
+Locksmith is deployed as a single-node Next.js application on Alibaba Cloud ECS in Singapore. The following services are used or provisioned for the deployment:
 
-- **Compute:** Alibaba Cloud ECS
-- **AI service:** Qwen via Alibaba Cloud Model Studio
-- **Application:** Next.js running on Node.js
-- **Storage:** Persistent local JSON and report files on the ECS instance
+| Service | Why we use it | Status in this repository |
+|---|---|---|
+| **ECS** | Hosts the Next.js web app, API routes, and review jobs | Active production runtime |
+| **Alibaba Cloud Model Studio (Qwen)** | Runs the six specialist agents that inspect dependency risk and produce the final verdict | Active through `lib/locksmith.ts` |
+| **KMS 3.0 / Secrets Manager** | Stores the Qwen API credential in an encrypted, centrally rotatable secret | Provisioned as `locksmith/qwen-api-key`; application fetch/rotation wiring is next |
+| **ApsaraDB RDS PostgreSQL** | Provides durable shared storage for workspace approvals, review history, evidence, and audit events | One Singapore instance is running; application migration is next |
+
+The current runtime still reads `QWEN_API_KEY` from server-only ECS environment
+configuration and stores review state in persistent local `.locksmith/` JSON files.
+RDS and KMS are therefore provisioned deployment infrastructure, not yet active
+application adapters. See [`ALIBABA.md`](ALIBABA.md) for the resource details and
+integration steps.
+
 - **Demo:** [http://47.84.96.197](http://47.84.96.197)
 
 The current hackathon deployment uses HTTP to keep the MVP inexpensive. A production deployment should add a domain, TLS, HTTPS, and a reverse proxy.
@@ -249,4 +281,4 @@ This section maps the remaining work to `SUBMISSION.md`.
 - Public scans do not equal owner or team approval.
 - Local history is useful for the demo, but it is not a team source of truth.
 - The deployed ECS instance is a single-node MVP. Review jobs remain in process memory, while review history and package evidence use persistent local `.locksmith/` storage.
-- See [`ALIBABA.md`](ALIBABA.md) for the current public deployment record and [`CLOUD.md`](CLOUD.md) for the deployment runbook.
+- See [`ALIBABA.md`](ALIBABA.md) for the current public deployment record. Deployment commands are documented in that file and the `Dockerfile`.

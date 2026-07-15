@@ -57,7 +57,9 @@ jobs:
             fi
             sleep 2
           done
-          test "$(curl --fail --silent --show-error --max-time 15 http://127.0.0.1/api/health)" = '{"ok":true,"service":"locksmith"}'
+          health="$(curl --fail --silent --show-error --max-time 15 http://127.0.0.1/api/health)"
+          echo "$health"
+          node -e 'const h=JSON.parse(process.argv[1]); if (!h.ok || h.storage !== "rds" || !h.database?.connected) process.exit(1)' "$health"
           deployed="$(git rev-parse HEAD)"
           expected="$(git rev-parse origin/main)"
           test "$deployed" = "$expected"
