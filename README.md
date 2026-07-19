@@ -140,6 +140,8 @@ Requirements:
 | `QWEN_API_KEY` | Required. Alibaba Cloud Model Studio API key used for real agent analysis. |
 | `QWEN_MODEL` | Required. Model name sent to the Qwen API. `.env.example` uses `qwen3.5-flash`. |
 | `QWEN_BASE_URL` | Optional OpenAI-compatible endpoint. Defaults to `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`. |
+| `DATABASE_URL` | Optional PostgreSQL connection string for shared persistence. Without it, the MVP uses local JSON storage. |
+| `DATABASE_SSL` | Optional. Set to `true` when the PostgreSQL provider requires TLS. |
 
 There is no mock mode in the current app. Reviews fail fast when `QWEN_API_KEY` or `QWEN_MODEL` is missing. The deployed instance keeps these values server-side; do not commit them.
 
@@ -197,22 +199,34 @@ The review endpoint returns a `reviewId`. Poll `/api/review/{reviewId}` for pack
 .
 ├── app/
 │   ├── api/
-│   │   ├── history/          # Reads local review history
+│   │   ├── health/           # Deployment health check
+│   │   ├── history/          # Review history API
 │   │   ├── repo/             # Public GitHub repo inspection
 │   │   └── review/           # Starts and polls review jobs
-│   ├── components/           # Shared header and repo search form
+│   ├── components/           # Shared header, search, report, and reveal UI
+│   ├── docs/                 # Product and usage documentation page
 │   ├── history/              # Saved review UI
 │   ├── review/               # Live review UI and final report
+│   ├── terminal/             # Guarded-install terminal UI
 │   └── page.tsx              # Landing page
-├── bin/locksmith.mjs         # Guarded npm install CLI
+├── bin/locksmith.mjs         # Guarded npm-install CLI
 ├── lib/
-│   ├── locksmith.ts          # Core review engine and Qwen agent prompts
-│   ├── npmPackages.ts        # npm registry/tarball package evidence
-│   ├── pythonPackages.ts     # PyPI artifact package evidence
-│   ├── reviewHistory.ts      # Local JSON history
-│   ├── renderHtmlReport.ts   # Dependency-free CLI report renderer
-│   └── reviewJobs.ts         # In-memory async review jobs
-├── public/assets/            # Product and workflow illustrations
+│   ├── locksmith.ts           # Core review engine and Qwen agent prompts
+│   ├── localReview.ts         # Local dependency-state review orchestration
+│   ├── npmInstall.ts          # Guarded npm-install workflow
+│   ├── npmPackages.ts         # npm registry/tarball package evidence
+│   ├── pythonPackages.ts      # PyPI artifact package evidence
+│   ├── reviewJobs.ts          # In-memory async review jobs
+│   ├── reviewHistory.ts       # Local and PostgreSQL review history
+│   ├── workspaceDecisions.ts  # Workspace approvals and audit decisions
+│   ├── packageEvidence.ts     # Evidence persistence and retention
+│   ├── database.ts            # PostgreSQL connection and schema helpers
+│   └── renderHtmlReport.ts    # Dependency-free CLI report renderer
+├── public/assets/             # Product and workflow illustrations
+├── test/locksmith.test.ts     # Node test-suite coverage
+├── .env.example               # Local environment template
+├── next.config.mjs            # Standalone Next.js configuration
+├── tsconfig.json               # TypeScript configuration
 ├── Dockerfile                # Standalone production image
 └── README.md
 ```
