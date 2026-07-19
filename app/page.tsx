@@ -77,7 +77,6 @@ export default function Home() {
       </section>
 
       <section className="artifact-section" aria-labelledby="artifact-title">
-        <div className="artifact-count">4 of 8</div>
         <Image
           className="artifact-art"
           src="/assets/11_product_review_stack.png"
@@ -93,7 +92,6 @@ export default function Home() {
       </section>
 
       <section className="workflow-section" aria-labelledby="workflow-title">
-        <div className="workflow-meta"><span>5 of 8</span><span>Workflow</span></div>
         <h2 id="workflow-title">From repo to verdict in one review<span>.</span></h2>
         <div className="workflow-line" aria-hidden="true" />
         <div className="workflow-cards">
@@ -131,7 +129,6 @@ export default function Home() {
       </section>
 
       <section className="plans-section" aria-labelledby="plans-title">
-        <div className="plans-meta"><span>7 of 8</span><span>Plans / Use Cases</span></div>
         <div className="plans-copy">
           <h2 id="plans-title">Start local.<br />Add team trust<br />later.</h2>
           <p>Guard an npm install today. Add workspace approvals when the review needs to be shared.</p>

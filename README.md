@@ -4,7 +4,7 @@ Locksmith is a Qwen-powered dependency safety reviewer for developers and small 
 
 > Locksmith puts dependency changes on trial before they enter your lockfile.
 
-Primary hackathon track: **Track 3: Agent Society**
+Hackathon application track: **Track 3 — Agent Society**.
 
 ## 🧭 Story Scenario
 
@@ -90,18 +90,22 @@ Locksmith is built for the moment before a dependency enters a project. It turns
 
 Locksmith is deployed as a single-node Next.js application on Alibaba Cloud ECS in Singapore. The following services are used or provisioned for the deployment:
 
+See the complete deployment record in [`ALIBABA.md`](ALIBABA.md), and see the submitted screenshots and recording in [`proof-of-deployment/`](proof-of-deployment/).
+
 | Service | Why we use it | Status in this repository |
 |---|---|---|
-| **ECS** | Hosts the Next.js web app, API routes, and review jobs | Active production runtime |
-| **Alibaba Cloud Model Studio (Qwen)** | Runs the six specialist agents that inspect dependency risk and produce the final verdict | Active through `lib/locksmith.ts` |
-| **KMS 3.0 / Secrets Manager** | Stores the Qwen API credential in an encrypted, centrally rotatable secret | Provisioned as `locksmith/qwen-api-key`; application fetch/rotation wiring is next |
-| **ApsaraDB RDS PostgreSQL** | Provides durable shared storage for workspace approvals, review history, evidence, and audit events | One Singapore instance is running; application migration is next |
+| **ECS** | Hosts the Next.js web app, API routes, and review jobs | Active production runtime; configured by [`Dockerfile`](Dockerfile) and deployment details in [`ALIBABA.md`](ALIBABA.md) |
+| **Alibaba Cloud Model Studio (Qwen)** | Runs the six specialist agents that inspect dependency risk and produce the final verdict | Active through [`lib/locksmith.ts`](lib/locksmith.ts), using the Alibaba-compatible endpoint and server-side Qwen credentials |
+| **KMS 3.0 / Secrets Manager** | Stores the Qwen API credential in an encrypted, centrally rotatable secret | Provisioned as `locksmith/qwen-api-key`; the current app reads `QWEN_API_KEY` from ECS environment configuration in [`lib/locksmith.ts`](lib/locksmith.ts) |
+| **ApsaraDB RDS PostgreSQL** | Provides durable shared storage for workspace approvals, review history, evidence, and audit events | Provisioned and wired behind `DATABASE_URL` in [`lib/database.ts`](lib/database.ts); persistence modules opt in through [`lib/reviewHistory.ts`](lib/reviewHistory.ts), [`lib/packageEvidence.ts`](lib/packageEvidence.ts), and [`lib/workspaceDecisions.ts`](lib/workspaceDecisions.ts) |
 
 The current runtime still reads `QWEN_API_KEY` from server-only ECS environment
 configuration and stores review state in persistent local `.locksmith/` JSON files.
-RDS and KMS are therefore provisioned deployment infrastructure, not yet active
-application adapters. See [`ALIBABA.md`](ALIBABA.md) for the resource details and
-integration steps.
+RDS and KMS remain provisioned deployment infrastructure rather than fully managed
+application integrations: KMS SDK/RAM-role secret fetching and the complete RDS
+schema migration are still pending. The deployment evidence is collected in
+[`proof-of-deployment/`](proof-of-deployment/), including the ECS, KMS, and RDS
+screenshots plus the Alibaba Cloud deployment recording.
 
 - **Demo:** [http://47.84.96.197](http://47.84.96.197)
 
@@ -109,18 +113,33 @@ The current hackathon deployment uses HTTP to keep the MVP inexpensive. A produc
 
 ## 🚀 Getting Started
 
+Locksmith supports two ways to test the application:
+
+### Try the hosted EC2 demo
+
+Open the deployed app at [http://47.84.96.197](http://47.84.96.197). No repository clone, local setup, or API key is required. The hosted instance uses server-side Qwen credentials configured on ECS, so testers can use this path to evaluate the product UI, repository review flow, agent progress, final verdict, and review history.
+
+If the hosted review fails, the shared Qwen API key may have reached its usage or cost limit. In that case, run Locksmith locally with your own Qwen API key using the instructions below.
+
+### Run Locksmith locally
+
+Local development is also supported for technical testers who want to inspect or modify the implementation:
+
+```bash
+git clone <repository-url>
+cd <repository-directory>
+npm install
+cp .env.example .env.local
+# Add your own QWEN_API_KEY to .env.local
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Local reviews use the tester's own Alibaba Cloud Model Studio/Qwen credentials and store review state locally in `.locksmith/`. The API key is read server-side and must never be committed or shared. There is currently no mock mode, so `QWEN_API_KEY` and `QWEN_MODEL` must be configured for reviews to run.
+
 Requirements:
 
 - Node.js 20 or newer
 - A Qwen API key from Alibaba Cloud Model Studio
-
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ## 🔧 Environment Variables
 
@@ -232,17 +251,20 @@ Recommended demo flow:
 6. **Stronger behavioral evidence** — execute selected packages in an isolated monitored sandbox, clearly separating observed behavior from the current static/inferred findings.
 7. **Broader developer workflows** — publish the CLI, add `locksmith scan .` and `locksmith review`, support pip/Poetry and more lockfile formats, then add private GitHub import through OAuth.
 
-### Current Limitations
+### ⚠️ Honest Limitations
 
 - Review jobs are stored in memory, so polling fails after a server restart.
 - Review history is local-only JSON, not a team backend.
 - History stores non-allow package evidence only, so successful package evidence is not retained in full.
 - npm requires `package-lock.json` for exact version inspection; without it, npm packages are marked `Review` as unresolved.
 - PyPI support handles pinned/simple dependency strings, not full pip resolver behavior.
-- Python package review is capped at 20 packages per scan.
+- Package/library coverage is intentionally limited in the MVP. Python reviews are capped at 20 packages per scan, while the guarded npm CLI is capped at 50 resolved packages. These limits keep the project budget-friendly and avoid exhausting the Alibaba Cloud Qwen inference voucher during development and judging. 🚦
+- The current package limit is a cost and reliability trade-off, not a claim that larger repositories are fully covered. A production version would add batching, caching, prioritization, and configurable budgets.
 - PyPI wheel parsing is minimal and artifact selection is not platform-aware.
 - Behavior analysis is inferred from retrieved files; there is no sandbox execution yet.
 - Large package evidence can make later Qwen roles slow or stall.
+- The six agents currently use deliberately compact, role-focused prompts to control Qwen inference cost. Each agent's prompt could be improved with richer domain skills, structured references, package-type-specific guidance, and more examples of strong evidence. 🧠
+- Better prompts would likely improve consistency and depth, but they would also increase token usage and voucher consumption. The next iteration should measure that quality/cost trade-off per agent before expanding every prompt. 💰
 - The CLI is not published on npm yet; use the repository script or `npm link` during local development.
 - Only guarded npm install is in scope. pip and raw scan commands are not MVP surfaces.
 - The dependency state ID hashes dependency-file content only; it is not yet scoped by repository, commit, branch, package manager, or policy version.
