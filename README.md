@@ -51,20 +51,7 @@ Locksmith is built for the moment before a dependency enters a project. It turns
 
 ## 🏗️ System Architecture Flow
 
-The full diagram is also committed as [`docs/architecture.mmd`](docs/architecture.mmd).
-
-```mermaid
-flowchart LR
-  U[Developer] -->|choose| S[Web App / CLI]
-  S -->|inspect| G[GitHub]
-  G -->|provide| R[Locksmith Review Engine]
-  S -->|start| R
-  R -->|fetch| P[npm / PyPI]
-  P -->|supply| R
-  R -->|review| Q[Six Qwen Agents]
-  Q -->|issue| V[Allow / Review / Block]
-  V -->|save| H[History]
-```
+<img width="1834" height="1024" alt="arch-diagram" src="https://github.com/user-attachments/assets/0cc03e5a-f4ff-4621-bfda-4fb24854089f" />
 
 ## 🤖 Six-Agent Review Panel
 
